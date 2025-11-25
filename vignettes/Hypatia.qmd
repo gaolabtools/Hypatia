@@ -48,8 +48,6 @@ Check out our <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">*paper*
 [Citation]
 ```
 
-** This vignette will be hosted on Github Pages and accessible via URL once the repository is made public.
-
 # Setup 
 
 ## Installation
