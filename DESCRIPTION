@@ -1,0 +1,36 @@
+Package: Hypatia
+Title: Single-cell Isoform Analysis
+Version: 0.1.0
+Authors@R: 
+    person("Timothy", "Pan", , "timothy.pan@northwestern.edu", role = c("aut", "cre"))
+Description: What the package does (one paragraph).
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+URL: https://github.com/pan-ty/Hypatia
+BugReports: https://github.com/pan-ty/Hypatia/issues
+Imports: 
+    checkmate,
+    dplyr (>= 1.0.0),
+    ggnewscale,
+    ggplot2,
+    Matrix,
+    patchwork,
+    presto (== 1.0.0),
+    purrr,
+    S4Vectors,
+    SingleCellExperiment,
+    SummarizedExperiment,
+    tidyr
+Remotes:
+    immunogenomics/presto
+Suggests: 
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Depends: 
+    R (>= 4.1)
+LazyData: true
+VignetteBuilder: knitr
