@@ -38,9 +38,7 @@ h1.title {
 
 ## Background
 
-Alternative splicing, transcriptional start sites, and termination sites are essential regulatory mechanisms that produce RNA isoforms that diversify the coding capacity of the genome with significant implications in health and disease. Single-cell long-read RNA-sequencing is a novel technology enables the investigation of RNA isoforms at cell type resolution. 
-
-Hypatia is a computational suite in R for the analysis of single-cell isoform expression data. There are 3 analysis modules offered in Hypatia: differential isoform usage (DIU), differential isoform diversity (DIV), and differential isoform usage (DEI). This vignette shows how to analyze data using Hypatia and provides an full tutorial data set that is pre-built into the package. 
+RNA isoforms diversify the coding capacity of the genome and have significant implications in health and disease. Long-read single-cell RNA-sequencing (LR-scRNAseq) enables the investigation of RNA isoforms at cell type resolution. Hypatia is a computational suite in R for data analysis across 3 modules: 1) isoform usage, which identifies differential isoform usage events (DIUs), 2) isoform diversity, which identifies differential isoform diversity events (DIVs), and 3) isoform expression, which identifies differentially expressed isoforms (DEIs). 
 
 Check out our <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">*paper*</a> for more details on Hypatia. If you found this tool useful, please remember to cite us:
 
@@ -116,7 +114,7 @@ ggplot2::ggplot(plotdata) +
                  legend.position = "none")
 ```
 
-The tutorial data is available (lazy-loaded) once the package is loaded into the environment:
+The tutorial data is available (lazy-loaded) after the package is loaded into the environment:
 
 ```{r load-example}
 #| eval: false
@@ -358,13 +356,13 @@ Vectors of cell IDs or active transcript IDs can also be used in through the arg
 
 # 3. Differential analysis
 
-Hypatia provides **3** modes of differential isoform analysis:
+Hypatia provides **3** modules for differential isoform analysis:
 
--   **Isoform Usage**: Identifies differential isoform usage (DIU) events, marked by significant differences in isoform ratios of genes.
+-   **Isoform Usage**: Identifies differential isoform usage (DIU) events, marked by significant differences in isoform ratios of genes across cell groups.
 
--   **Isoform Diversity**: Computes isoform diversity, classifies genes as 'monoform' (low diversity) or 'polyform' (high diversity), and performs pairwise comparisons of classifications. Genes having diverging classifications across are considered DIVs.
+-   **Isoform Diversity**: Computes isoform diversity, classifies genes as 'monoform' (low diversity) or 'polyform' (high diversity), and performs pairwise comparisons of classifications. Genes having diverging classifications across cell groups are considered DIVs.
 
--   **Isoform Expression**: Identifies differentially expressed isoforms (DEIs) by comparing the mean normalized expression of isoforms between cells.
+-   **Isoform Expression**: Identifies differentially expressed isoforms (DEIs) by comparing the mean normalized expression of isoforms across groups of cells.
 
 
 | Method     | Analysis          | Visualization | Data retrieval |
@@ -407,7 +405,7 @@ glutvsgaba_diu <- RunDIU(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 glutvsgaba_diu <- RunDIU(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 ```
 
-`RunDIU()` returns a list with two elements:
+`RunDIU()` returns a list of two data frames:
 
 `$data` contains the summarized isoform usage data used to generate the statistical output:
 
@@ -582,7 +580,7 @@ neur_div <- RunDIV(gbm, group.1 = c("Glut neuron", "GABA neuron"))
 glutvsgaba_div <- RunDIV(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 ```
 
-`RunDIV()` returns a list with two elements:
+`RunDIV()` returns a list of two data frames:
 
 `$data` contains the summarized isoform diversity data used to generate the statistical output.
 
