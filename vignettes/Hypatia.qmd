@@ -114,7 +114,7 @@ ggplot2::ggplot(plotdata) +
                  legend.position = "none")
 ```
 
-The tutorial data is available (lazy-loaded) after the package is loaded into the environment:
+The following input data for the tutorial is available (lazy-loaded) after the package is loaded into the environment:
 
 ```{r load-example}
 #| eval: false
@@ -128,13 +128,13 @@ gbm_gtf
 
 ```
 
-The raw isoform expression matrix `gbm_countData` consists of 56,642 isoforms from 5,043 cells.
+The raw single-cell isoform expression matrix `gbm_countData` consists of 56,642 isoforms from 5,043 cells.
 
 ```{r expr-str}
 #| eval: true
 #| collapse: true
-#| code-fold: show
-#| code-summary: Raw count matrix
+#| code-fold: true
+#| code-summary: gbm_countData
 
 str(gbm_countData)
 ```
@@ -144,8 +144,8 @@ The cell-level metadata `gbm_colData` contains the columns `cell_type`, `umap_1`
 ```{r cellmeta-str}
 #| eval: true
 #| collapse: true
-#| code-fold: show
-#| code-summary: Cell-level metadata
+#| code-fold: true
+#| code-summary: gbm_colData
 
 str(gbm_colData)
 ```
@@ -155,8 +155,8 @@ The transcript-level metadata `gbm_rowData` has the column `gene_id` that contai
 ```{r transcriptmeta-str}
 #| eval: true
 #| collapse: true
-#| code-fold: show
-#| code-summary: Transcript-level metadata
+#| code-fold: true
+#| code-summary: gbm_rowData
 
 str(gbm_rowData)
 ```
@@ -231,7 +231,7 @@ Hypatia's `CreateSCE()` will also create the following new variables in `colData
 #| eval: true
 #| collapse: true
 #| code-fold: show
-#| code-summary: Example colData
+#| code-summary: colData
 
 colData(gbm) |> head()
 ```
@@ -240,7 +240,7 @@ colData(gbm) |> head()
 #| echo: true
 #| collapse: true
 #| code-fold: show
-#| code-summary: Example rowData
+#| code-summary: rowData
 
 rowData(gbm) |> head()
 ```
