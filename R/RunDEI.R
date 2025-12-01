@@ -29,7 +29,7 @@
 #' @import SummarizedExperiment
 #' @import dplyr
 #' @importFrom tidyr unite
-#' @importFrom presto wilcoxauc
+#' @importFrom matrixTests row_wilcoxon_twosample
 
 RunDEI <- function(
   object,
@@ -133,18 +133,40 @@ RunDEI <- function(
 
 
   # DEI
+  object_grp_list <- list()
 
   ## every group vs all
   if (is.null(group.1) && is.null(group.2)) {
 
-    if (!quiet) message("Running DEI analysis for all groups in '", paste0(group.by, collapse = "_"), "'...")
-    results <- wilcoxauc(X = expr_mat, y = cell_groups)
-    group.2.updated <- NULL
+    # loop through each group to make object list
+    for (grp in unique_groups) {
 
-    if (length(unique(cell_groups)) == 2) {
-      results <- results %>%
-        filter(group == unique(cell_groups)[1])
+      # assign group.2
+      group.1 <- grp
+      group.2 <- setdiff(unique_groups, group.1)
+
+      # create an object for grp1 and grp2
+      object_grp1 <- object[, object$group_var == grp]
+      object_grp2 <- object[, object$group_var != grp]
+
+      # update cell groups
+      group.1.updated <- paste0(group.1, collapse = ",")
+      group.2.updated <- paste0(group.2, collapse = ",")
+
+      # add to list
+      object_grp_list[[grp]] <- list("grp1.object" = object_grp1,
+                                     "grp2.object" = object_grp2,
+                                     "grp1.names" = group.1.updated,
+                                     "grp2.names" = group.2.updated)
+
+      # if only two groups, only run one
+      if (length(unique_groups) == 2) {
+        break
+      }
+
     }
+
+    if (!quiet) message("Running DEI analysis for all groups in '", paste0(group.by, collapse = "_"), "'...")
 
   }
 
@@ -152,31 +174,43 @@ RunDEI <- function(
   else if (!is.null(group.1) && is.null(group.2)) {
 
     # assign group.2
-    group.2.updated <- setdiff(unique_groups, group.1)
-    # update cell groups
-    cell_groups_updated <- ifelse(cell_groups %in% group.1, paste0(group.1, collapse = ","), cell_groups)
-    cell_groups_updated <- ifelse(cell_groups_updated %in% group.2.updated, paste0(group.2.updated, collapse = ","), cell_groups_updated)
-    group.1.updated <- paste0(group.1, collapse = ",")
-    group.2.updated <- paste0(group.2.updated, collapse = ",")
-    # wilcox test
-    if (!quiet) message("Running DEI analysis for ", group.1.updated, " vs all other cells...")
-    results <- wilcoxauc(X = expr_mat, y = cell_groups_updated, groups_use = c(group.1.updated, group.2.updated))
-    results <- results %>% filter(group == group.1.updated) # filter result for specified group
+    group.2 <- setdiff(unique_groups, group.1)
 
+    # create an object for grp1 and grp2
+    object_grp1 <- object[, object$group_var %in% group.1]
+    object_grp2 <- object[, object$group_var %in% group.2]
+
+    # update cell groups
+    group.1.updated <- paste0(group.1, collapse = ",")
+    group.2.updated <- paste0(group.2, collapse = ",")
+
+    # add to list
+    object_grp_list[["single_test"]] <- list("grp1.object" = object_grp1,
+                                             "grp2.object" = object_grp2,
+                                             "grp1.names" = group.1.updated,
+                                             "grp2.names" = group.2.updated)
+
+    if (!quiet) message("Running DEI analysis for ", group.1.updated, " vs all other cells...")
   }
 
   ## 2 groups comparison
   else if (!is.null(group.1) && !is.null(group.2)) {
 
+    # create an object for grp1 and grp2
+    object_grp1 <- object[, object$group_var %in% group.1]
+    object_grp2 <- object[, object$group_var %in% group.2]
+
     # update cell groups
-    cell_groups_updated <- ifelse(cell_groups %in% group.1, paste0(group.1, collapse = ","), cell_groups)
-    cell_groups_updated <- ifelse(cell_groups_updated %in% group.2, paste0(group.2, collapse = ","), cell_groups_updated)
     group.1.updated <- paste0(group.1, collapse = ",")
     group.2.updated <- paste0(group.2, collapse = ",")
-    # wilcox test
+
+    # add to list
+    object_grp_list[["single_test"]] <- list("grp1.object" = object_grp1,
+                                             "grp2.object" = object_grp2,
+                                             "grp1.names" = group.1.updated,
+                                             "grp2.names" = group.2.updated)
+
     if (!quiet) message("Running DEI analysis for ", group.1.updated, " vs ", group.2.updated, "...")
-    results <- wilcoxauc(X = expr_mat, y = cell_groups_updated, groups_use = c(group.1.updated, group.2.updated))
-    results <- results %>% filter(group == group.1.updated) # presto wilcoxauc outputs both directions, use group.1 direction
 
   }
 
@@ -186,54 +220,108 @@ RunDEI <- function(
   }
 
 
-  # Results
-  ## filter results by min.pct before pval correction
-  results <- results %>%
-    mutate(pct_in = pct_in / 100,
-           pct_out = pct_out / 100) %>%
-    filter(pct_in >= min.pct & pct_out >= min.pct)
-  ## calculate valid log2FC (presto's logFC column is actually diff between means)
-  results <- results %>%
-    rename("avgExpr.1" = "avgExpr") %>%
-    mutate(avgExpr.2 = avgExpr.1 - logFC,
-           log2FC = log2(avgExpr.1 / avgExpr.2))
-  ## calculate bonferroni corrected p-values (per group)
-  results <- results %>%
-    select(-c(padj)) %>%
-    group_by(group) %>%
-    mutate(padj = p.adjust(pval, method = "bonferroni")) %>%
-    arrange(desc(padj)) %>%
-    ungroup()
-  ## filter only positive log2FC
-  if (only.pos) {
-    results <- results %>%
-      filter(log2FC >= 0)
-  }
+  # Loop through object grp list
+  data_list <- list()
 
-  ## output
-  results <- results %>%
-    rename(
-      "transcript" = "feature",
-      "pct.1" = "pct_in",
-      "pct.2" = "pct_out",
-      "group.1" = "group"
+  for (comp in names(object_grp_list)) {
+
+    if (!quiet && comp != "single_test" && length(unique_groups) > 2) message(comp, "... ")
+
+    ## get group objects and names
+    object_grp1 <- object_grp_list[[comp]]$grp1.object
+    object_grp2 <- object_grp_list[[comp]]$grp2.object
+    group.1 <- object_grp_list[[comp]]$grp1.names
+    group.2 <- object_grp_list[[comp]]$grp2.names
+
+    ## count mat for each group
+    expr_mat_grp1 <- assay(object_grp1, assay.use)
+    expr_mat_grp2 <- assay(object_grp2, assay.use)
+
+    ## gene name
+    gene_groups_grp1 <- rowData(object_grp1)[[active.gene.id]]
+
+    ## mean expression for each group
+    avg_grp1 <- rowMeans(expr_mat_grp1)
+    avg_grp2 <- rowMeans(expr_mat_grp2)
+
+    ## expression detection rates (pct) for each group
+    pct_grp1 <- rowSums(expr_mat_grp1 > 0) / ncol(expr_mat_grp1)
+    pct_grp2 <- rowSums(expr_mat_grp2 > 0) / ncol(expr_mat_grp2)
+
+    ## report expression stats
+    stopifnot(all(rownames(gene_groups_grp1) == rownames(avg_grp1)))
+    expr_df <- data.frame("gene" = gene_groups_grp1,
+                          "pct.grp1" = pct_grp1,
+                          "pct.grp2" = pct_grp2,
+                          "avg.grp1" = avg_grp1,
+                          "avg.grp2" = avg_grp2
+                          ) %>%
+      # fold change
+      mutate(log2FC = log2(avg.grp1 / avg.grp2))
+
+    # Wilcox test using matrixTests
+    stopifnot(all(rownames(expr_mat_grp1) == rownames(expr_mat_grp2)))
+
+    ## numeric matrix is required
+    mat_grp1_dense <- suppressWarnings(as.matrix(expr_mat_grp1))
+    mat_grp2_dense <- suppressWarnings(as.matrix(expr_mat_grp2))
+
+    ## test
+    test_result <- row_wilcoxon_twosample(
+      x = mat_grp1_dense,
+      y = mat_grp2_dense,
+      alternative = "two.sided",
+      exact = NA
+      )
+    test_result <- test_result[, "pvalue", drop = FALSE]
+    stopifnot(all(rownames(test_result) == rownames(expr_df)))
+
+    ## number of tests
+    n_tests <- nrow(test_result)
+
+    ## combine test results with expression stats
+    results <- cbind(expr_df, test_result)
+    ## add group names
+    results <- results %>%
+      mutate("group.1" = group.1,
+             "group.2" = group.2,
+             .before = "gene")
+
+    ## filter by min.pct before pvalue correction
+    results <- results %>%
+      filter(pct.grp1 >= min.pct & pct.grp2 >= min.pct)
+
+    ## calculate bonferroni corrected p-values (per group)
+    results <- results %>%
+      mutate(padj = p.adjust(pvalue, method = "bonferroni")) %>%
+      arrange(padj) %>%
+      ungroup()
+
+    ## filter only positive log2FC
+    if (only.pos) {
+      results <- results %>%
+        filter(log2FC >= 0)
+    }
+
+    ## output format
+    results <- results %>%
+      rownames_to_column(var = "transcript") %>%
+      rename(
+        "pct.1" = "pct.grp1",
+        "pct.2" = "pct.grp2",
+        "avgExpr.1" = "avg.grp1",
+        "avgExpr.2" = "avg.grp2",
+        "pval" = "pvalue"
       ) %>%
-    mutate("group.2" = ifelse(is.null(group.2.updated), NA, group.2.updated)) %>%
-    left_join(., gene.id.df, by = "transcript") %>%
-    select(group.1, group.2, gene, transcript, pct.1, pct.2, avgExpr.1, avgExpr.2, log2FC, pval, padj) %>%
-    arrange(group.1, padj) %>%
-    as.data.frame()
+      select(group.1, group.2, gene, transcript, pct.1, pct.2, avgExpr.1, avgExpr.2, log2FC, pval, padj)
 
-  if (is.null(group.2.updated)) {
-    results <- results %>%
-      rowwise() %>%
-      mutate(group.2 = paste0(setdiff(unique_groups, group.1), collapse = ",")) %>%
-      ungroup() %>%
-      as.data.frame()
-
+    data_list[[comp]] <- results
   }
+
+  # combine results from across comparisons
+  final_results <- reduce(data_list, rbind)
 
   if (!quiet) message("Done.")
 
-  return(results)
+  return(final_results)
 }

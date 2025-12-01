@@ -17,14 +17,13 @@ Imports:
     ggplot2,
     Matrix,
     patchwork,
-    presto (== 1.0.0),
     purrr,
     S4Vectors,
     SingleCellExperiment,
     SummarizedExperiment,
-    tidyr
+    tidyr,
+    matrixTests
 Remotes:
-    immunogenomics/presto,
     bioc::S4Vectors,
     bioc::SummarizedExperiment,
     bioc::SingleCellExperiment
