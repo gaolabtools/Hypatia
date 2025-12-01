@@ -259,9 +259,17 @@ RunDEI <- function(
       # fold change
       mutate(log2FC = log2(avg.grp1 / avg.grp2))
 
-    # Wilcox test using matrixTests
+    ## filter transcripts by min.pct before, dense, tests, and correction
+    test_transcripts <- expr_df %>%
+      filter(pct.grp1 >= min.pct & pct.grp2 >= min.pct) %>%
+      rownames()
+    expr_df <- expr_df[test_transcripts, , drop = FALSE]
+    expr_mat_grp1 <- expr_mat_grp1[test_transcripts, , drop = FALSE]
+    expr_mat_grp2 <- expr_mat_grp2[test_transcripts, , drop = FALSE]
     stopifnot(all(rownames(expr_mat_grp1) == rownames(expr_mat_grp2)))
+    stopifnot(all(rownames(expr_mat_grp1) == rownames(expr_df)))
 
+    # Wilcox test using matrixTests
     ## numeric matrix is required
     mat_grp1_dense <- suppressWarnings(as.matrix(expr_mat_grp1))
     mat_grp2_dense <- suppressWarnings(as.matrix(expr_mat_grp2))
@@ -276,9 +284,6 @@ RunDEI <- function(
     test_result <- test_result[, "pvalue", drop = FALSE]
     stopifnot(all(rownames(test_result) == rownames(expr_df)))
 
-    ## number of tests
-    n_tests <- nrow(test_result)
-
     ## combine test results with expression stats
     results <- cbind(expr_df, test_result)
     ## add group names
@@ -286,10 +291,6 @@ RunDEI <- function(
       mutate("group.1" = group.1,
              "group.2" = group.2,
              .before = "gene")
-
-    ## filter by min.pct before pvalue correction
-    results <- results %>%
-      filter(pct.grp1 >= min.pct & pct.grp2 >= min.pct)
 
     ## calculate bonferroni corrected p-values (per group)
     results <- results %>%
