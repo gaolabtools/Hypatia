@@ -28,7 +28,9 @@
 #' @import SingleCellExperiment
 #' @import SummarizedExperiment
 #' @import dplyr
+#' @importFrom tibble rownames_to_column column_to_rownames
 #' @importFrom tidyr unite
+#' @importFrom purrr reduce
 #' @importFrom matrixTests row_wilcoxon_twosample
 
 RunDEI <- function(
