@@ -62,6 +62,8 @@ if (!requireNamespace("devtools", quietly = TRUE)) {
 devtools::install_github("gaolabtools/Hypatia")
 ```
 
+The following dependencies will be installed if they are not already present: checkmate, dplyr (>= 1.0.0), ggnewscale, ggplot2, Matrix, patchwork, purrr, S4Vectors, SingleCellExperiment, SummarizedExperiment, tidyr, and matrixTests.
+
 ```{r load}
 #| eval: true
 #| echo: false
