@@ -24,9 +24,9 @@ Imports:
     SummarizedExperiment,
     tidyr
 Remotes:
-    immunogenomics/presto
-    bioc::S4Vectors
-    bioc::SummarizedExperiment
+    immunogenomics/presto,
+    bioc::S4Vectors,
+    bioc::SummarizedExperiment,
     bioc::SingleCellExperiment
 Suggests: 
     knitr,
