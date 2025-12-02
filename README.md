@@ -1,16 +1,39 @@
-# Hypatia: a statistical framework for comparative isoform profiling across cell populations
+<div align="center">
+ 
+  <img width="120" height="180" alt="image" src="https://github.com/user-attachments/assets/529166f8-c03d-4542-872a-748b64449580" /> 
+  
+  # Hypatia
+  
+  **A statistical framework for comparative isoform profiling across cell populations.**
 
-For installation and documentation, please visit [Hypatia vignette](https://gaolabtools.github.io/Hypatia/vignettes/Hypatia.html). 
+ To get started, please visit [Hypatia's vignette](https://gaolabtools.github.io/Hypatia/vignettes/Hypatia.html). 
 
-## About Hypatia
+</div>
+
+
+## About
 
 Hypatia is a computational toolkit for the investigation of population-specific isoforms from LR-scRNAseq data, featuring three modes of differential analyses:
 1) Isoform usage: Identifies differential isoform usage shifts (DIUs).
 2) Isoform diversity: Classifies genes according to isoform species heterogeneity and identifies discrepances (DIVs).
 3) Isoform expression: Detects differentially expressed isoforms (DEIs).
 
-## How to cite Hypatia
-If you found Hypatia useful in your research, please cite the following paper:
+## Installation
+
+Hypatia is an R library available through Github.
+
+```r
+if (!requireNamespace("devtools", quietly = TRUE)) {
+  install.packages("devtools")
+}
+
+devtools::install_github("gaolabtools/Hypatia")
+```
+
+Requires R version 4.1 or higher.
+
+## Citation
+If you found Hypatia useful in your research, please cite us:
 ```
 [Citation]
 ```
