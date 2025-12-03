@@ -3,7 +3,7 @@ run_start <- Sys.time()
 # Settings ------------------------------------------------------------
 
 ## Run
-run_id <- "run_x"
+run_id <- "run_23"
 n_cores <- 20
 working_dir <- "simulation/"
 seed <- 1029
@@ -12,8 +12,8 @@ set.seed(seed)
 ## Simulation
 n_tests <- 30000 # number of 'genes' to simulate
 cell_number <- 500 # cells per group (2 groups will be simulated)
-avg_gene_expr <- 2 # gamma scale for mean gene expr
-gene_expr_shape <- 0.2 # gamma shape for mean gene expr
+avg_gene_expr <- 3 # gamma scale for mean gene expr
+gene_expr_shape <- 0.3 # gamma shape for mean gene expr
 sc_disp <- 0.1 # rnbinom size for dispersion param
 timeout <- 60 # timeout for ground truth simulations (seconds)
 
