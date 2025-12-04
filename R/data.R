@@ -33,7 +33,7 @@
 #' Row names are Ensembl transcript IDs.
 #'
 #' @source Package tutorial data.
-#' "gbm_rowData"
+"gbm_rowData"
 
 #' Complete single-cell isoform raw count matrix.
 #'
