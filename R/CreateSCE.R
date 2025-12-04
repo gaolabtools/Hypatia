@@ -22,7 +22,7 @@
 #' @import Matrix
 #' @import SingleCellExperiment
 #' @import SummarizedExperiment
-#' @importFrom S4Vectors metadata metadata<-
+#' @importFrom S4Vectors metadata metadata<- mcols mcols<-
 #' @importFrom stats na.omit
 #' @importFrom methods as
 

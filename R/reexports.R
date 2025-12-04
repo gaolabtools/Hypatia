@@ -1,10 +1,6 @@
-#' @importFrom SingleCellExperiment SingleCellExperiment colData rowData counts counts<- reducedDim reducedDim<- reducedDimNames reducedDimNames<- mainExpName mainExpName<-
+#' @importFrom SingleCellExperiment SingleCellExperiment counts counts<- reducedDim reducedDim<- reducedDimNames reducedDimNames<- mainExpName mainExpName<-
 #' @export
 SingleCellExperiment::SingleCellExperiment
-#' @export
-SingleCellExperiment::colData
-#' @export
-SingleCellExperiment::rowData
 #' @export
 SingleCellExperiment::counts
 #' @export
@@ -22,7 +18,7 @@ SingleCellExperiment::mainExpName
 #' @export
 SingleCellExperiment::`mainExpName<-`
 
-#' @importFrom SummarizedExperiment assay assay<- assayNames assays assays<- mcols mcols<- rowRanges rowRanges<-
+#' @importFrom SummarizedExperiment assay assay<- assayNames assays assays<- rowRanges rowRanges<- colData rowData
 #' @export
 SummarizedExperiment::assay
 #' @export
@@ -36,16 +32,20 @@ SummarizedExperiment::`assays<-`
 #' @export
 SummarizedExperiment::`assays<-`
 #' @export
-SummarizedExperiment::mcols
-#' @export
-SummarizedExperiment::`mcols<-`
-#' @export
 SummarizedExperiment::rowRanges
 #' @export
 SummarizedExperiment::`rowRanges<-`
+#' @export
+SummarizedExperiment::colData
+#' @export
+SummarizedExperiment::rowData
 
-#' @importFrom S4Vectors metadata metadata<-
+#' @importFrom S4Vectors metadata metadata<- mcols mcols<-
 #' @export
 S4Vectors::metadata
 #' @export
 S4Vectors::`metadata<-`
+#' @export
+S4Vectors::mcols
+#' @export
+S4Vectors::`mcols<-`

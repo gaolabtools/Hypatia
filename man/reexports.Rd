@@ -4,8 +4,6 @@
 \name{reexports}
 \alias{reexports}
 \alias{SingleCellExperiment}
-\alias{colData}
-\alias{rowData}
 \alias{counts}
 \alias{counts<-}
 \alias{reducedDim}
@@ -19,12 +17,14 @@
 \alias{assayNames}
 \alias{assays}
 \alias{assays<-}
-\alias{mcols}
-\alias{mcols<-}
 \alias{rowRanges}
 \alias{rowRanges<-}
+\alias{colData}
+\alias{rowData}
 \alias{metadata}
 \alias{metadata<-}
+\alias{mcols}
+\alias{mcols<-}
 \title{Objects exported from other packages}
 \keyword{internal}
 \description{
@@ -32,10 +32,10 @@ These objects are imported from other packages. Follow the links
 below to see their documentation.
 
 \describe{
-  \item{S4Vectors}{\code{\link[S4Vectors:Annotated-class]{metadata}}, \code{\link[S4Vectors:Annotated-class]{metadata<-}}}
+  \item{S4Vectors}{\code{\link[S4Vectors:Vector-class]{mcols}}, \code{\link[S4Vectors:Vector-class]{mcols<-}}, \code{\link[S4Vectors:Annotated-class]{metadata}}, \code{\link[S4Vectors:Annotated-class]{metadata<-}}}
 
-  \item{SingleCellExperiment}{\code{\link[SingleCellExperiment]{colData}}, \code{\link[SingleCellExperiment:assays]{counts}}, \code{\link[SingleCellExperiment:assays]{counts<-}}, \code{\link[SingleCellExperiment:altExps]{mainExpName}}, \code{\link[SingleCellExperiment:altExps]{mainExpName<-}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDim}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDim<-}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDimNames}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDimNames<-}}, \code{\link[SingleCellExperiment]{rowData}}, \code{\link[SingleCellExperiment]{SingleCellExperiment}}}
+  \item{SingleCellExperiment}{\code{\link[SingleCellExperiment:assays]{counts}}, \code{\link[SingleCellExperiment:assays]{counts<-}}, \code{\link[SingleCellExperiment:altExps]{mainExpName}}, \code{\link[SingleCellExperiment:altExps]{mainExpName<-}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDim}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDim<-}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDimNames}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDimNames<-}}, \code{\link[SingleCellExperiment]{SingleCellExperiment}}}
 
-  \item{SummarizedExperiment}{\code{\link[SummarizedExperiment:SummarizedExperiment-class]{assay}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assay<-}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assayNames}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assays}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assays<-}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assays<-}}, \code{\link[SummarizedExperiment]{mcols}}, \code{\link[SummarizedExperiment]{mcols<-}}, \code{\link[SummarizedExperiment:RangedSummarizedExperiment-class]{rowRanges}}, \code{\link[SummarizedExperiment:RangedSummarizedExperiment-class]{rowRanges<-}}}
+  \item{SummarizedExperiment}{\code{\link[SummarizedExperiment:SummarizedExperiment-class]{assay}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assay<-}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assayNames}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assays}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assays<-}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assays<-}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{colData}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{rowData}}, \code{\link[SummarizedExperiment:RangedSummarizedExperiment-class]{rowRanges}}, \code{\link[SummarizedExperiment:RangedSummarizedExperiment-class]{rowRanges<-}}}
 }}
 

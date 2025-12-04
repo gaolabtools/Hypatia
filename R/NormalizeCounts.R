@@ -15,7 +15,7 @@
 #' @import SingleCellExperiment
 #' @import SummarizedExperiment
 #' @import Matrix
-#' @importFrom S4Vectors mcols
+#' @importFrom S4Vectors mcols mcols<-
 
 NormalizeCounts <- function(
     object,
