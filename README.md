@@ -13,7 +13,7 @@
 
 ## About
 
-Hypatia is a computational toolkit for the investigation of population-specific isoforms from LR-scRNAseq data, featuring three modes of differential analyses:
+Hypatia (hi-pay-shuh) is a computational toolkit for the investigation of population-specific isoforms from long-read single-cell RNA-sequencing data, featuring three modes of differential analyses:
 1) Isoform usage: Identifies differential isoform usage shifts (DIUs).
 2) Isoform diversity: Classifies genes according to isoform species heterogeneity and identifies discrepances (DIVs).
 3) Isoform expression: Detects differentially expressed isoforms (DEIs).
