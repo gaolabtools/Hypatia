@@ -19,6 +19,8 @@
 #' @importFrom tidyr unite
 #' @import ggplot2
 #' @import patchwork
+#' @importFrom stats cor
+#' @importFrom grDevices colorRampPalette
 
 PlotCellQC <- function(
     object,

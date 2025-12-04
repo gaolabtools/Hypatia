@@ -32,6 +32,7 @@
 #' @importFrom tidyr unite
 #' @importFrom purrr reduce
 #' @importFrom matrixTests row_wilcoxon_twosample
+#' @importFrom stats p.adjust
 
 RunDEI <- function(
   object,

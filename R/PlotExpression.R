@@ -30,6 +30,8 @@
 #' @import ggplot2
 #' @importFrom tidyr pivot_longer unite
 #' @importFrom ggnewscale new_scale_fill
+#' @importFrom grDevices colorRampPalette
+#' @importFrom stats median
 
 PlotExpression <- function(
     object,

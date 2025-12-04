@@ -60,6 +60,7 @@
 #' @import dplyr
 #' @importFrom tidyr unite
 #' @importFrom purrr reduce
+#' @importFrom stats wilcox.test mcnemar.test
 
 RunDIV <- function (
     object,

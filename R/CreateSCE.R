@@ -23,6 +23,8 @@
 #' @import SingleCellExperiment
 #' @import SummarizedExperiment
 #' @importFrom S4Vectors metadata metadata<-
+#' @importFrom stats na.omit
+#' @importFrom methods as
 
 CreateSCE <- function(
     countData,

@@ -26,6 +26,7 @@
 #' @importFrom tidyr pivot_longer
 #' @import ggplot2
 #' @import patchwork
+#' @importFrom grDevices colorRampPalette
 
 PlotUsage <- function(
     object,

@@ -19,7 +19,7 @@ PlotDiversity(
   colors = NULL,
   text.size = 12,
   nrow = 1,
-  verbose = TRUE
+  quiet = FALSE
 )
 }
 \arguments{

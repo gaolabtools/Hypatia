@@ -29,6 +29,7 @@
 #' @import ggplot2
 #' @importFrom Matrix rowSums
 #' @importFrom tidyr unite
+#' @importFrom grDevices colorRampPalette
 
 PlotDiversity <- function (
     object,
@@ -45,7 +46,7 @@ PlotDiversity <- function (
     colors = NULL,
     text.size = 12,
     nrow = 1,
-    verbose = TRUE
+    quiet = FALSE
 ) {
 
   # Check inputs
@@ -70,7 +71,7 @@ PlotDiversity <- function (
   assertTRUE(order != 1 || is.null(order))
   assertNumber(text.size, lower = 0, finite = TRUE)
   assertNumber(nrow, lower = 1, finite = TRUE)
-  assertFlag(verbose)
+  assertFlag(quiet)
 
   # Transcript and gene IDs
   assertString(metadata(object)$active.transcript.id)
@@ -94,7 +95,7 @@ PlotDiversity <- function (
       stop("None of the genes were found in the object. (Check active.gene.id?)")
     }
     if (length(missing_genes) > 0) {
-      if (verbose) message("\u2139 Warning: The following genes were not found in the object: '", paste0(missing_genes, collapse = "', '"), "'.")
+      if (!quiet) message("\u2139 Warning: The following genes were not found in the object: '", paste0(missing_genes, collapse = "', '"), "'.")
       genes <- genes[genes %in% unique(rowData(object)[[active.gene.id]])]
     }
     object <- object[rowData(object)[[active.gene.id]] %in% genes, , drop = FALSE]

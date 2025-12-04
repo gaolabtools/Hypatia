@@ -59,6 +59,7 @@
 #' @importFrom tidyr unite
 #' @importFrom purrr reduce
 #' @importFrom S4Vectors metadata metadata<-
+#' @importFrom stats chisq.test fisher.test p.adjust
 
 RunDIU <- function(
     object,
