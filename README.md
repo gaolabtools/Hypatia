@@ -6,6 +6,11 @@
   
   **A statistical framework for comparative isoform profiling across cell populations.**
 
+  [![R version](https://img.shields.io/badge/R-4.1-276DC3?style=for-the-badge&logo=r&logoColor=white)](https://www.r-project.org/)
+  ![Build](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge)
+  [![Download](https://img.shields.io/badge/Download-blue?style=for-the-badge&logo=github&logoColor=white)](https://github.com/gaolabtools/Hypatia/releases)
+  [![stars](https://img.shields.io/github/stars/gaolabtools/Hypatia?style=for-the-badge&logo=github&color=FFD700)](https://github.com/gaolabtools/Hypatia/stargazers)
+
  To get started, please visit [Hypatia's vignette](https://gaolabtools.github.io/Hypatia/vignettes/Hypatia.html). 
 
 </div>
