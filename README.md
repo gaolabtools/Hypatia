@@ -37,6 +37,10 @@ devtools::install_github("gaolabtools/Hypatia")
 
 Requires R version 4.1 or higher.
 
+## Usage
+
+For detailed documentation and tutorial, please visit [Hypatia's vignette](https://gaolabtools.github.io/Hypatia/vignettes/Hypatia.html). 
+
 ## Citation
 If you found Hypatia useful in your research, please cite us:
 ```
