@@ -42,7 +42,9 @@ Requires R version 4.1 or higher.
 For detailed documentation and tutorial, please visit [Hypatia's vignette](https://gaolabtools.github.io/Hypatia/vignettes/Hypatia.html). 
 
 ## Citation
-If you found Hypatia useful in your research, please cite us:
+If you found Hypatia useful in your research, please cite our [preprint](https://www.biorxiv.org/content/10.64898/2026.01.13.699341v2):
 ```
-[Citation]
-```
+Pan, T., Shiau, C. K., Lu, L., Wang, C., Wang, M., He, Y., Bhimaraj, A., Brat, D., Huse, J.,
+Jessica Li, J., & Gao, R. (2026). Hypatia: Comparative Isoform Profiling Across Cell Populations
+ from Long-Read Single-Cell Transcriptomes. bioRxiv : the preprint server for biology,
+ 2026.01.13.699341. https://doi.org/10.64898/2026.01.13.699341```
