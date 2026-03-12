@@ -37,6 +37,9 @@ devtools::install_github("gaolabtools/Hypatia")
 
 Requires R version 4.1 or higher.
 
+If installation gives the "Bad credentials" error after using GitHub PAT, there is an expired or invalid Github token stored on your machine. 
+To update or remove the invalid token, use `gitcreds::gitcredsset()` and `gitcreds::gitcreds_delete()`. Then retry the installation.
+
 ## Usage
 
 For detailed documentation and tutorial, please visit [Hypatia's vignette](https://gaolabtools.github.io/Hypatia/vignettes/Hypatia.html). 
