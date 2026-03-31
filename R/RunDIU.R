@@ -306,7 +306,7 @@ RunDIU <- function(
 
     ## number of tests to conduct
     n_tests <- length(unique(agg_cts_df$gene.id))
-    if (!quiet) message(n_tests, " genes passed detection thresholds.")
+    if (!quiet) message("  ", n_tests, " genes passed detection thresholds.")
 
     ## test sample size for Chisq approximation
     if (method.use == "Chisq") {
@@ -320,10 +320,10 @@ RunDIU <- function(
         pull(gene.id) %>%
         unique()
 
-      if (!quiet && length(warning_genes) > 0) message("\u2139 Warning: ", length(warning_genes), " genes with inadequate sample size for Chisq approximation.")
+      if (!quiet && length(warning_genes) > 0) message("  \u2139 Warning: ", length(warning_genes), " genes with inadequate sample size for Chisq approximation.")
 
       if (only.valid) {
-        if (!quiet) message("\u2139 `only.valid` is set to TRUE. Only genes with valid approximations will be considered.")
+        if (!quiet) message("  \u2139 `only.valid` is set to TRUE. Only genes with valid approximations will be considered.")
         agg_cts_df <- agg_cts_df %>%
           filter(approx == "valid")
       }
@@ -337,7 +337,7 @@ RunDIU <- function(
     if (n_tests == 0) {
       next
     }
-    if (!quiet) message("Testing DIU for ", n_tests, " genes...")
+    if (!quiet) message("  Performing DIU comparisons...")
 
     ## proportion and delta
     diu_data <- agg_cts_df %>%

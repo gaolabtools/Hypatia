@@ -228,7 +228,7 @@ RunDEI <- function(
 
   for (comp in names(object_grp_list)) {
 
-    if (!quiet && comp != "single_test" && length(unique_groups) > 2) message(comp, "... ")
+    if (!quiet && comp != "single_test" && length(unique_groups) > 2) message("  ", comp, "... ")
 
     ## get group objects and names
     object_grp1 <- object_grp_list[[comp]]$grp1.object
