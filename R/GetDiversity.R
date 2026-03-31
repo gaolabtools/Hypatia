@@ -6,7 +6,7 @@
 #' @param genes A vector of one or more gene IDs.
 #' @param group.by Name of `colData` variable to group cells. If `NULL`, `metadata(object)$active.group.id` will be used.
 #' @param group.subset An optional vector specifying a subset of the elements in `group.by` to include.
-#' @param method.use The diversity index to calculate.
+#' @param entropy.use The diversity index to calculate.
 #' Options include `"Tsallis"`, `"Shannon"`, `"NormalizedShannon"`, `"Renyi"`, `"NormalizedRenyi"`, `"GiniSimpson"`, or `InverseSimpson`.
 #' @param assay.use Which `assay` (counts) to use.
 #' @param diversity.cutoff The cutoff of the diversity index used for monoform and polyform classification.
@@ -40,7 +40,7 @@ GetDiversity <- function (
     genes,
     group.by = NULL,
     group.subset = NULL,
-    method.use = "Tsallis",
+    entropy.use = "Tsallis",
     assay.use = "counts",
     diversity.cutoff = NULL,
     min.tx.cts = 1,
@@ -59,7 +59,7 @@ GetDiversity <- function (
     assertSubset(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
   }
   assertCharacter(group.subset, null.ok = TRUE)
-  assertChoice(method.use, c("Tsallis", "Shannon", "NormalizedShannon", "Renyi", "NormalizedRenyi", "GiniSimpson", "InverseSimpson"))
+  assertChoice(entropy.use, c("Tsallis", "Shannon", "NormalizedShannon", "Renyi", "NormalizedRenyi", "GiniSimpson", "InverseSimpson"))
   assertTRUE(assay.use %in% assayNames(object))
   assertNumber(diversity.cutoff, null.ok = TRUE, finite = TRUE, lower = 0)
   assertNumber(min.tx.cts, lower = 0, finite = TRUE)
@@ -141,46 +141,46 @@ GetDiversity <- function (
     ## calculate diversity
     div.func <- function(x) {
 
-      if (method.use == "Shannon") {
+      if (entropy.use == "Shannon") {
         x <- head(sort(x, decreasing = TRUE), 2)
         -sum(x[x > 0] * log(x[x > 0]))
       }
-      else if (method.use == "NormalizedShannon") {
+      else if (entropy.use == "NormalizedShannon") {
         n_x <- sum(x > 0)
         (-sum(x[x > 0] * log(x[x > 0]))) / (log(n_x))
       }
-      else if (method.use == "Renyi") {
+      else if (entropy.use == "Renyi") {
         if (is.null(order)) {order <- 2}
         x <- head(sort(x, decreasing = TRUE), 2)
         (1 / (1 - order)) * log( sum( (x[x > 0])^order ) )
       }
-      else if (method.use == "NormalizedRenyi") {
+      else if (entropy.use == "NormalizedRenyi") {
         if (is.null(order)) {order <- 2}
         n_x <- sum(x > 0)
         (1 / (1 - order)) * log( sum( (x[x > 0])^order ) ) / (log(n_x))
       }
-      else if (method.use == "GiniSimpson") {
+      else if (entropy.use == "GiniSimpson") {
         # x <- head(sort(x, decreasing = TRUE), 2)
         1 - sum( (x[x > 0])^2 )
       }
-      else if (method.use == "Tsallis") {
+      else if (entropy.use == "Tsallis") {
         if (is.null(order)) {order <- 3}
         (1 - sum(x[x > 0]^order)) / (order - 1)
       }
-      else if (method.use == "InverseSimpson") {
+      else if (entropy.use == "InverseSimpson") {
         1 / sum( (x[x > 0])^2 )
       }
     }
 
     ## diversity threshold
     if (is.null(diversity.cutoff)) {
-      if (method.use == "Shannon") {diversity.cutoff <- 0.500}
-      else if (method.use == "NormalizedShannon") {diversity.cutoff <- 0}
-      else if (method.use == "Renyi") {diversity.cutoff <- 0.435}
-      else if (method.use == "NormalizedRenyi") {diversity.cutoff <- 0}
-      else if (method.use == "GiniSimpson") {diversity.cutoff <- 0.348}
-      else if (method.use == "Tsallis") {diversity.cutoff <- 0.243}
-      else if (method.use == "InverseSimpson") {diversity.cutoff <- 1.533}
+      if (entropy.use == "Shannon") {diversity.cutoff <- 0.500}
+      else if (entropy.use == "NormalizedShannon") {diversity.cutoff <- 0}
+      else if (entropy.use == "Renyi") {diversity.cutoff <- 0.435}
+      else if (entropy.use == "NormalizedRenyi") {diversity.cutoff <- 0}
+      else if (entropy.use == "GiniSimpson") {diversity.cutoff <- 0.348}
+      else if (entropy.use == "Tsallis") {diversity.cutoff <- 0.243}
+      else if (entropy.use == "InverseSimpson") {diversity.cutoff <- 1.533}
     }
 
     div_res <- agg_cts_df %>%
