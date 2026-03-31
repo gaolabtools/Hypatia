@@ -9,12 +9,14 @@ RunDIV(
   group.by = NULL,
   group.1 = NULL,
   group.2 = NULL,
-  method.use = "Tsallis",
+  entropy = "Tsallis",
   assay.use = "counts",
-  diversity.cutoff = NULL,
+  entropy.cutoff = NULL,
   min.gene.pct = 0.05,
   min.gene.cts = 15,
   min.tx.cts = 1,
+  boot.iter = 100,
+  boot.size = 0.6,
   include.single = TRUE,
   order = NULL,
   genes = NULL,
@@ -30,12 +32,12 @@ RunDIV(
 
 \item{group.2}{Second group in the comparison.}
 
-\item{method.use}{The diversity index to calculate.
+\item{entropy}{The diversity index to calculate.
 Options include \code{"Tsallis"}, \code{"Shannon"}, \code{"NormalizedShannon"}, \code{"Renyi"}, \code{"NormalizedRenyi"}, \code{"GiniSimpson"}, or \code{InverseSimpson}. The default is \code{"Tsallis"}.}
 
 \item{assay.use}{Which \code{assay} (counts) to use.}
 
-\item{diversity.cutoff}{The cutoff of the diversity index used for monoform and polyform classification.
+\item{entropy.cutoff}{The cutoff of the diversity index used for monoform and polyform classifications.
 Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shannon, 0.435 for Renyi, 0 for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.}
 
 \item{min.gene.pct}{Minimum percentage of cells in which a gene must be expressed in both groups for it to be tested.}
@@ -43,6 +45,10 @@ Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shann
 \item{min.gene.cts}{Minimum total transcript counts in which a gene must be have in both groups for it be tested.}
 
 \item{min.tx.cts}{Minimum transcript counts required for a transcript to be included in the contingency table.}
+
+\item{boot.iter}{Number of bootstrap iterations to perform.}
+
+\item{boot.size}{Proportion of cells from 0.01 to 1 to use for bootstrap subsampling.}
 
 \item{include.single}{Logical; if \code{FALSE}, genes with only one associated transcript after filtering will be excluded from the analysis.}
 
@@ -57,37 +63,42 @@ A list containing two data frames:
 \describe{
 \item{\verb{$data}}{
 A data frame of summarized data with columns:
-\describe{
-\item{\code{group.1} & \code{group.2}}{The two cell groups being compared.}
-\item{\code{gene}}{The gene being tested.}
-\item{\code{gene.pct.1}}{Percentage of cells in \code{group.1} with expression of the gene.}
-\item{\code{gene.pct.2}}{Percentage of cells in \code{group.2} with expression of the gene.}
-\item{\code{n.transcripts}}{Number of transcripts associated with the gene.}
-\item{\code{div.1}}{Isoform diversity of the gene for cells in \code{group.1}.}
-\item{\code{div.2}}{Isoform diversity of the gene for cells in \code{group.2}.}
-\item{\code{div.diff}}{The difference in isoform diversity between groups (\code{group.1} - \code{group.2}).}
-\item{\code{div.class.1}}{Isoform diversity classification of the gene for \code{group.1}.}
-\item{\code{div.class.2}}{Isoform diversity classification of the gene for \code{group.2}.}
-\item{\code{div.class.diff}}{A logical indicating difference between isoform diversity classifications between \code{group.1} and \code{group.2.}}
-}
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{(Includes NA entries derived from bootstrapped sampling that resulted in 0 gene counts.)
+\\describe\{
+  \\item\{`boot.iter`\}\{Bootstrap iteration number.\}
+  \\item\{`group.1` & `group.2`\}\{The two cell groups being compared.\}
+  \\item\{`gene`\}\{The gene being tested.\}
+  \\item\{`div.1`\}\{Bootstrapped isoform diversity values of each gene for `group.1`.\}
+  \\item\{`div.2`\}\{Bootstrapped isoform diversity values of each gene for `group.2`.\}
+\}
+}\if{html}{\out{</div>}}
+
 }
 
 \item{\verb{$stats}}{
 A data frame containing statistical results with columns:
 \describe{
 \item{\code{group.1} & \code{group.2}}{The two cell groups being compared.}
-\item{\code{avgDiv.1}}{Average isoform diversity of genes from cells in \code{group.1}.}
-\item{\code{avgDiv.2}}{Average isoform diversity of genes from cells in \code{group.2}.}
-\item{\code{wilcox.pval}}{P-value from the paired Wilcoxon rank sum test comparing isoform diversity across the two groups.}
-\item{\code{mono.poly.1}}{Number of genes classified monoform to polyform from cells in \code{group.1}.}
-\item{\code{mono.poly.2}}{Number of genes classified monoform to polyform from cells in \code{group.1}.}
-\item{\code{mcnemar.pval}}{P-value from the pairwise McNemar test comparing isoform diversity classifications across the two groups.}
+\item{\code{gene}}{The gene being tested.}
+\item{\code{gene.pct.1}}{Percentage of cells in \code{group.1} with expression of the gene.}
+\item{\code{gene.pct.2}}{Percentage of cells in \code{group.2} with expression of the gene.}
+\item{\code{n.transcripts}}{Number of transcripts associated with the gene.}
+\item{\code{avgDiv.1}}{Bootstrapped average isoform diversity of the gene for cells in \code{group.1}.}
+\item{\code{avgDiv.2}}{Bootstrapped average isoform diversity of the gene for cells in \code{group.2}.}
+\item{\code{delta.div}}{The difference in averaged isoform diversities between groups (\code{group.1} - \code{group.2}).}
+\item{\code{log2FC}}{The log2 fold-change of averaged isoform diversities between groups (\code{group.1} - \code{group.2}).}
+\item{\code{pval}}{P-value from the Wilcox test comparing bootstrapped isoform diversities across groups.}
+\item{\code{padj}}{Adjusted p-value (Bonferroni correction).}
+\item{\code{div.class.1}}{Isoform diversity classification of the gene for \code{group.1}.}
+\item{\code{div.class.2}}{Isoform diversity classification of the gene for \code{group.2}.}
 }
 }
 }
 }
 \description{
 Runs isoform diversity analysis.
-For each comparison, genes are first filtered according to coverage, counts are aggregated across groups, and isoform diversity is calculated.
-The isoform diversity of genes are compared using pairwise Wilcoxon test and heterogeneity classification are compared using the pairwise McNemar test.
+For each comparison, genes are first filtered according to coverage.
+Cells are bootstrapped and transcript counts are aggregated to calculate diversity per bootstrap iteration.
+These diversities are then compared across cell groups using the Wilcox test.
 }

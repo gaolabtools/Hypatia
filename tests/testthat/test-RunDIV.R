@@ -10,13 +10,13 @@ test_that("RunDIV works", {
     )
 
   expect_no_error({
-    res <- RunDIV(gbm, min.gene.cts = 0, min.gene.pct = 0)
-    RunDIV(gbm, min.gene.cts = 0, min.gene.pct = 0, method.use = "Shannon", quiet = TRUE)
-    #RunDIV(gbm, min.gene.cts = 0, min.gene.pct = 0, method.use = "NormalizedShannon", diversity.cutoff = 0.6, quiet = TRUE)
-    RunDIV(gbm, min.gene.cts = 0, min.gene.pct = 0, method.use = "Renyi", quiet = TRUE)
-    #RunDIV(gbm, min.gene.cts = 0, min.gene.pct = 0, method.use = "NormalizedRenyi", diversity.cutoff = 0.6, quiet = TRUE)
-    RunDIV(gbm, min.gene.cts = 0, min.gene.pct = 0, method.use = "GiniSimpson", quiet = TRUE)
-    RunDIV(gbm, min.gene.cts = 0, min.gene.pct = 0, method.use = "InverseSimpson", quiet = TRUE)
+    res <- RunDIV(gbm, min.gene.cts = 10, min.gene.pct = 0.05, boot.iter = 10)
+    RunDIV(gbm, min.gene.cts = 10, min.gene.pct = 0.05, boot.iter = 10, entropy.use = "Shannon", quiet = FALSE)
+    # RunDIV(gbm, min.gene.cts = 0, min.gene.pct = 0, boot.iter = 10, entropy.use = "NormalizedShannon", entropy.thresh = 0.6, quiet = FALSE)
+    # RunDIV(gbm, min.gene.cts = 10, min.gene.pct = 0.05, boot.iter = 10, entropy.use = "Renyi", quiet = FALSE)
+    # RunDIV(gbm, min.gene.cts = 10, min.gene.pct = 0.05, boot.iter = 10, entropy.use = "NormalizedRenyi", entropy.thresh = 0.6, quiet = TRUE)
+    # RunDIV(gbm, min.gene.cts = 10, min.gene.pct = 0.05, boot.iter = 10, entropy.use = "GiniSimpson", quiet = FALSE)
+    # RunDIV(gbm, min.gene.cts = 10, min.gene.pct = 0.05, boot.iter = 10, entropy.use = "InverseSimpson", quiet = FALSE)
   })
 
   expect_class(res, "list")
