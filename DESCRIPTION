@@ -1,6 +1,6 @@
 Package: Hypatia
 Title: Single-cell Isoform Analysis
-Version: 1.0.0
+Version: 1.1.0
 Authors@R: 
     person("Timothy", "Pan", , "timothy.pan@northwestern.edu", role = c("aut", "cre"))
 Description: What the package does (one paragraph).
