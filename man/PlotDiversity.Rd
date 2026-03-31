@@ -13,7 +13,7 @@ PlotDiversity(
   plot.type = "lollipop",
   entropy.use = "Tsallis",
   assay.use = "counts",
-  diversity.cutoff = NULL,
+  entropy.thresh = NULL,
   min.tx.cts = 1,
   order = NULL,
   colors = NULL,
@@ -40,7 +40,7 @@ Options include \code{"Tsallis"}, \code{"Shannon"}, \code{"NormalizedShannon"}, 
 
 \item{assay.use}{Which \code{assay} (counts) to use.}
 
-\item{diversity.cutoff}{The cutoff of the diversity index used for monoform and polyform classification.
+\item{entropy.thresh}{The threshold of the diversity index used for monoform and polyform classification.
 Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shannon, 0.435 for Renyi, 0 for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.}
 
 \item{min.tx.cts}{Minimum transcript counts required for a transcript to be included in the contingency table.}

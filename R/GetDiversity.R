@@ -9,7 +9,7 @@
 #' @param entropy.use The diversity index to calculate.
 #' Options include `"Tsallis"`, `"Shannon"`, `"NormalizedShannon"`, `"Renyi"`, `"NormalizedRenyi"`, `"GiniSimpson"`, or `InverseSimpson`.
 #' @param assay.use Which `assay` (counts) to use.
-#' @param diversity.cutoff The cutoff of the diversity index used for monoform and polyform classification.
+#' @param entropy.thresh The threshold of the diversity index used for monoform and polyform classification.
 #' Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shannon, 0.435 for Renyi, 0 for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.
 #' @param min.tx.cts Minimum transcript counts required for a transcript to be included in the contingency table.
 #' @param order Value specifying the order of entropy. Corresponds to `q` for Tsallis (default: 3) and `alpha` for Renyi (default: 2).
@@ -42,7 +42,7 @@ GetDiversity <- function (
     group.subset = NULL,
     entropy.use = "Tsallis",
     assay.use = "counts",
-    diversity.cutoff = NULL,
+    entropy.thresh = NULL,
     min.tx.cts = 1,
     order = NULL,
     quiet = FALSE
@@ -61,7 +61,7 @@ GetDiversity <- function (
   assertCharacter(group.subset, null.ok = TRUE)
   assertChoice(entropy.use, c("Tsallis", "Shannon", "NormalizedShannon", "Renyi", "NormalizedRenyi", "GiniSimpson", "InverseSimpson"))
   assertTRUE(assay.use %in% assayNames(object))
-  assertNumber(diversity.cutoff, null.ok = TRUE, finite = TRUE, lower = 0)
+  assertNumber(entropy.thresh, null.ok = TRUE, finite = TRUE, lower = 0)
   assertNumber(min.tx.cts, lower = 0, finite = TRUE)
   assertNumber(order, lower = 0, finite = TRUE, null.ok = TRUE)
   assertTRUE(order != 1 || is.null(order))
@@ -173,14 +173,14 @@ GetDiversity <- function (
     }
 
     ## diversity threshold
-    if (is.null(diversity.cutoff)) {
-      if (entropy.use == "Shannon") {diversity.cutoff <- 0.500}
-      else if (entropy.use == "NormalizedShannon") {diversity.cutoff <- 0}
-      else if (entropy.use == "Renyi") {diversity.cutoff <- 0.435}
-      else if (entropy.use == "NormalizedRenyi") {diversity.cutoff <- 0}
-      else if (entropy.use == "GiniSimpson") {diversity.cutoff <- 0.348}
-      else if (entropy.use == "Tsallis") {diversity.cutoff <- 0.243}
-      else if (entropy.use == "InverseSimpson") {diversity.cutoff <- 1.533}
+    if (is.null(entropy.thresh)) {
+      if (entropy.use == "Shannon") {entropy.thresh <- 0.500}
+      else if (entropy.use == "NormalizedShannon") {entropy.thresh <- 0}
+      else if (entropy.use == "Renyi") {entropy.thresh <- 0.435}
+      else if (entropy.use == "NormalizedRenyi") {entropy.thresh <- 0}
+      else if (entropy.use == "GiniSimpson") {entropy.thresh <- 0.348}
+      else if (entropy.use == "Tsallis") {entropy.thresh <- 0.243}
+      else if (entropy.use == "InverseSimpson") {entropy.thresh <- 1.533}
     }
 
     div_res <- agg_cts_df %>%
@@ -188,7 +188,7 @@ GetDiversity <- function (
       mutate(n.transcripts = n(),
              prop = cts / sum(cts),
              diversity = div.func(x = prop),
-             class = ifelse(diversity <= diversity.cutoff, "monoform", "polyform")
+             class = ifelse(diversity <= entropy.thresh, "monoform", "polyform")
       ) %>%
       ungroup() %>%
       mutate(prop = ifelse(is.nan(prop), NA, prop),
