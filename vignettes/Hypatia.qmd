@@ -43,7 +43,7 @@ RNA isoforms diversify the coding capacity of the genome and have significant im
 Check out our <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">*paper*</a> for more details on Hypatia. If you found this tool useful, please remember to cite us:
 
 ``` python
-[Citation]
+ 
 ```
 
 # Setup 
@@ -563,7 +563,7 @@ Isoform diversity is a measure of the heterogeneity of transcript isoforms produ
 
 ### RunDIV
 
-`RunDIV()` computes isoform diversity at the gene level and performs comparisons. By default, the Tsallis entropy is calculated. Genes are then classified as monoform or polyform and classifications are compared using the pairwise McNemar's test across cell groups, and the pairwise Wilcoxon test is used to compare isoform diversity values. Refer to the help page (`?RunDIV`) for more details on parameters. The usage is similar to Hypatia's other 'Run' functions:
+`RunDIV()` compares isoform diversity using the Wilcoxon test. Gene-level diversities across cell groups are estimated by bootstrap iterations following gene filtering. By default, the Tsallis entropy is calculated. Genes are also classified as monoform or polyform. Refer to the help page (`?RunDIV`) for more details on parameters. The usage is similar to Hypatia's other 'Run' functions:
 
 ```{r rundiv}
 #| eval: false
@@ -584,15 +584,13 @@ glutvsgaba_div <- RunDIV(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 
 `RunDIV()` returns a list of two data frames:
 
-`$data` contains the summarized isoform diversity data used to generate the statistical output.
+`$data` contains the bootstrapped isoform diversity data used to generate the statistical output.
 
+- `boot.iter`: Bootstrap iteration number.
 - `group.1` & `group.2`: The two cell groups being compared.
-- `gene`: The gene for which the isoform diversity is computed.
-- `gene.pct.1`: Percentage of cells in `group.1` with expression of the gene.
-- `gene.pct.2`: Percentage of cells in `group.2` with expression of the gene.
-- `n.transcripts`: Number of transcripts associated with the gene.
-- `div.1`: Isoform diversity of the gene for cells in `group.1`.
-- `div.2`: Isoform diversity of the gene for cells in `group.2`.
+- `gene`: Gene list for which the isoform diversity is computed.
+- `div.1`: Bootstrapped isoform diversity of the gene for cells in `group.1`, ordered by `gene`.
+- `div.2`: Bootstrapped isoform diversity of the gene for cells in `group.2`, ordered by `gene`.
 - `div.diff`: The difference in isoform diversity between groups (`group.1` - `group.2`).
 - `div.class.1`: Isoform diversity classification of the gene for `group.1`.
 - `div.class.2`: Isoform diversity classification of the gene for `group.2`. 
@@ -601,12 +599,18 @@ glutvsgaba_div <- RunDIV(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 `$stats` contains results from the statistical tests.
 
 - `group.1` & `group.2`: The two cell groups being compared.
-- `avgDiv.1`: Average isoform diversity of genes from cells in `group.1`.
-- `avgDiv.2`: Average isoform diversity of genes from cells in `group.2`.
-- `wilcox.pval`: P-value from the paired Wilcoxon rank sum test comparing isoform diversity across the two groups. 
-- `mono.poly.1`: Number of genes classified monoform to polyform from cells in `group.1`.
-- `mono.poly.2`: Number of genes classified monoform to polyform from cells in `group.2`.
-- `mcnemar.pval`: P-value from the pairwise McNemar test comparing isoform diversity classifications across the two groups. 
+- `gene`: Gene for which the isoform diversity is computed and compared.
+- `gene.pct.1`: Percentage of cells in `group.1` with expression of the gene (without bootstrapping).
+- `gene.pct.2`: Percentage of cells in `group.2` with expression of the gene (without bootstrapping).
+- `n.transcripts`: Number of transcripts associated with the gene.
+- `avgDiv.1`: Average of bootstrapped isoform diversity of the gene for cells in `group.1`.
+- `avgDiv.2`: Average of bootstrapped isoform diversity of the gene for cells in `group.2`.
+- `delta.div`: Difference in averaged diversity (`group.1` - `group.2`).
+- `log2FC`: Log2 fold-change of averaged diversity (`group.1` - `group.2`).
+- `pval`: P-value from the Wilcoxon rank sum test comparing isoform diversity across the two groups. 
+- `padj`: Adjusted p-value (Bonferroni correction).
+- `div.class.1`: Isoform diversity classification of the gene for `group.1`.
+- `div.class.2`: Isoform diversity classification of the gene for `group.2`. 
 
 ```{r rundiv-gbm}
 #| eval: true
@@ -639,31 +643,17 @@ head(gbm_div$stats)
 
 `PlotDiversity()` can be used to visualize isoform diversity across groups of cells. The `plot.type` parameter can be one of 'lollipop' (default), 'pcoord' for parallel coordinate, or 'density'. The **lollipop** and **pcoord** plot types are designed to visualize the diversity of a few genes, while the **density** plots the distribution of isoform diversity of several genes. 
 
-```{r plotdiversity-genes}
-#| eval: true
-#| code-fold: true
-#| code-summary: Example genes
-#| collapse: true
-
-set.seed(1996)
-
-random_genes <- gbm_div$data |>
-  dplyr::filter(n.transcripts > 1) |>
-  dplyr::slice_sample(n = 5) |>
-  dplyr::pull(gene)
-
-random_genes
-```
-
 ```{r plotdiversity-prepare}
 #| eval: true
 #| echo: true
 #| message: false
 
+example_genes <- c("NAPEPLD", "NPEPPS", "GNG7", "ANKRD10", "PNISR")
+
 # Lollipop (default)
 p_loll <- PlotDiversity(
   gbm,
-  genes = random_genes,
+  genes = example_genes,
   group.subset = c("GABA neuron", "Glut neuron", "Microglia", "Oligodendrocyte", "OPC",
                    "Tumor")
   )
@@ -671,7 +661,7 @@ p_loll <- PlotDiversity(
 # Parallel coordinates
 p_para <- PlotDiversity(
   gbm,
-  genes = random_genes,
+  genes = example_genes,
   plot.type = "pcoord",
   group.subset = c("GABA neuron", "Glut neuron", "Microglia", "Oligodendrocyte", "OPC",
                    "Tumor")
@@ -680,7 +670,7 @@ p_para <- PlotDiversity(
 # Density 
 p_dens <- PlotDiversity(
   gbm, 
-  genes = unique(gbm_div$data$gene),
+  genes = unique(unlist(gbm_div$data$gene)),
   plot.type = "density",
   group.subset = c("GABA neuron", "Glut neuron", "Microglia", "Oligodendrocyte", "OPC",
                    "Tumor"),
@@ -714,6 +704,9 @@ mt3_div <- GetDiversity(gbm, genes = "MT3")
 
 # Isoform diversity of gene MT3 in OPC cells
 mt3_div_opc <- GetDiversity(gbm, genes = "MT3", group.subset = "OPC")
+
+# Shannon isoform diversity of gene MT3 in OPC cells
+mt3_div_opc <- GetDiversity(gbm, genes = "MT3", group.subset = "OPC", entropy.use = "Shannon")
 ```
 
 ```{r getdiversity-output}
