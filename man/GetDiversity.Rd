@@ -9,7 +9,7 @@ GetDiversity(
   genes,
   group.by = NULL,
   group.subset = NULL,
-  method.use = "Tsallis",
+  entropy.use = "Tsallis",
   assay.use = "counts",
   diversity.cutoff = NULL,
   min.tx.cts = 1,
@@ -26,7 +26,7 @@ GetDiversity(
 
 \item{group.subset}{An optional vector specifying a subset of the elements in \code{group.by} to include.}
 
-\item{method.use}{The diversity index to calculate.
+\item{entropy.use}{The diversity index to calculate.
 Options include \code{"Tsallis"}, \code{"Shannon"}, \code{"NormalizedShannon"}, \code{"Renyi"}, \code{"NormalizedRenyi"}, \code{"GiniSimpson"}, or \code{InverseSimpson}.}
 
 \item{assay.use}{Which \code{assay} (counts) to use.}
