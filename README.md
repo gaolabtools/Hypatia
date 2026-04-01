@@ -18,9 +18,9 @@
 
 ## About
 
-Hypatia (hi-pay-shuh) is a computational toolkit for the investigation of population-specific isoforms from long-read single-cell RNA-sequencing data, featuring three modes of differential analyses:
+Hypatia (hy-pay-shuh) is a computational toolkit for the investigation of population-specific isoforms from long-read single-cell RNA-sequencing data, featuring three modes of differential analyses:
 1) Isoform usage: Identifies differential isoform usage shifts (DIUs).
-2) Isoform diversity: Classifies genes according to isoform species heterogeneity and identifies discrepances (DIVs).
+2) Isoform diversity: Detects differential isoform diversity (DIVs) events and performs classifications.
 3) Isoform expression: Detects differentially expressed isoforms (DEIs).
 
 ## Installation
@@ -38,7 +38,7 @@ devtools::install_github("gaolabtools/Hypatia")
 Requires R version 4.1 or higher.
 
 If installation gives the "Bad credentials" error after using GitHub PAT, there is an expired or invalid Github token stored on your machine. 
-To update or remove the invalid token, use `gitcreds::gitcredsset()` and `gitcreds::gitcreds_delete()`. Then retry the installation.
+To update or remove the invalid token, use `gitcreds::gitcredsset()` or `gitcreds::gitcreds_delete()`. Then retry the installation.
 
 ## Usage
 
@@ -50,4 +50,5 @@ If you found Hypatia useful in your research, please cite our [preprint](https:/
 Pan, T., Shiau, C. K., Lu, L., Wang, C., Wang, M., He, Y., Bhimaraj, A., Brat, D., Huse, J.,
 Jessica Li, J., & Gao, R. (2026). Hypatia: Comparative Isoform Profiling Across Cell Populations
  from Long-Read Single-Cell Transcriptomes. bioRxiv : the preprint server for biology,
- 2026.01.13.699341. https://doi.org/10.64898/2026.01.13.699341```
+ 2026.01.13.699341. https://doi.org/10.64898/2026.01.13.699341
+```
