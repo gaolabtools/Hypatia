@@ -20,8 +20,8 @@
 
 Hypatia (hy-pay-shuh) is a computational toolkit for the investigation of population-specific isoforms from long-read single-cell RNA-sequencing data, featuring three modes of differential analyses:
 1) Isoform usage: Identifies differential isoform usage shifts (DIUs).
-2) Isoform diversity: Detects differential isoform diversity (DIVs) events and performs classifications.
-3) Isoform expression: Detects differentially expressed isoforms (DEIs).
+2) Isoform diversity: Detects differential isoform diversity events (DIVs) and performs entropy-based classifications.
+3) Isoform expression: Detects differentially expressed isoforms (DEIs) across groups of cells.
 
 ## Installation
 
