@@ -593,6 +593,9 @@ glutvsgaba_div <- RunDIV(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 
 - `group.1` & `group.2`: The two cell groups being compared.
 - `gene`: Gene for which the isoform diversity is computed and compared.
+- `gene.pct.1`: Percentage of cells in `group.1` with expression of the gene (without bootstrapping).
+- `gene.pct.2`: Percentage of cells in `group.2` with expression of the gene (without bootstrapping).
+- `n.transcripts`: Number of transcripts associated with the gene.
 - `div.1`: Bootstrapped isoform diversities of the gene for cells in `group.1`.
 - `div.2`: Bootstrapped isoform diversities of the gene for cells in `group.2`.
 
@@ -600,9 +603,6 @@ glutvsgaba_div <- RunDIV(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 
 - `group.1` & `group.2`: The two cell groups being compared.
 - `gene`: Gene for which the isoform diversity is computed and compared.
-- `gene.pct.1`: Percentage of cells in `group.1` with expression of the gene (without bootstrapping).
-- `gene.pct.2`: Percentage of cells in `group.2` with expression of the gene (without bootstrapping).
-- `n.transcripts`: Number of transcripts associated with the gene.
 - `avgDiv.1`: Average of bootstrapped isoform diversity of the gene for cells in `group.1`.
 - `avgDiv.2`: Average of bootstrapped isoform diversity of the gene for cells in `group.2`.
 - `delta.div`: Difference in averaged diversity (`group.1` - `group.2`).
