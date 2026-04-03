@@ -66,6 +66,9 @@ A data frame of summarized data with columns:
 \describe{
 \item{\code{group.1} & \code{group.2}}{The two cell groups being compared.}
 \item{\code{gene}}{The gene being tested.}
+\item{\code{gene.pct.1}}{Percentage of cells in \code{group.1} with expression of the gene.}
+\item{\code{gene.pct.2}}{Percentage of cells in \code{group.2} with expression of the gene.}
+\item{\code{n.transcripts}}{Number of transcripts associated with the gene.}
 \item{\code{div.1}}{Bootstrapped isoform diversity values of each gene for \code{group.1}.}
 \item{\code{div.2}}{Bootstrapped isoform diversity values of each gene for \code{group.2}.}
 }
@@ -77,9 +80,6 @@ A data frame containing statistical results with columns:
 \describe{
 \item{\code{group.1} & \code{group.2}}{The two cell groups being compared.}
 \item{\code{gene}}{The gene being tested.}
-\item{\code{gene.pct.1}}{Percentage of cells in \code{group.1} with expression of the gene.}
-\item{\code{gene.pct.2}}{Percentage of cells in \code{group.2} with expression of the gene.}
-\item{\code{n.transcripts}}{Number of transcripts associated with the gene.}
 \item{\code{avgDiv.1}}{Average of bootstrapped isoform diversity of the gene for cells in \code{group.1}.}
 \item{\code{avgDiv.2}}{Average of bootstrapped isoform diversity of the gene for cells in \code{group.2}.}
 \item{\code{delta.div}}{The difference in averaged isoform diversities between groups (\code{group.1} - \code{group.2}).}

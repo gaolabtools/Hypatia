@@ -30,6 +30,9 @@
 #'     \describe{
 #'       \item{`group.1` & `group.2`}{The two cell groups being compared.}
 #'       \item{`gene`}{The gene being tested.}
+#'       \item{`gene.pct.1`}{Percentage of cells in `group.1` with expression of the gene.}
+#'       \item{`gene.pct.2`}{Percentage of cells in `group.2` with expression of the gene.}
+#'       \item{`n.transcripts`}{Number of transcripts associated with the gene.}
 #'       \item{`div.1`}{Bootstrapped isoform diversity values of each gene for `group.1`.}
 #'       \item{`div.2`}{Bootstrapped isoform diversity values of each gene for `group.2`.}
 #'     }
@@ -41,9 +44,6 @@
 #'     \describe{
 #'       \item{`group.1` & `group.2`}{The two cell groups being compared.}
 #'       \item{`gene`}{The gene being tested.}
-#'       \item{`gene.pct.1`}{Percentage of cells in `group.1` with expression of the gene.}
-#'       \item{`gene.pct.2`}{Percentage of cells in `group.2` with expression of the gene.}
-#'       \item{`n.transcripts`}{Number of transcripts associated with the gene.}
 #'       \item{`avgDiv.1`}{Average of bootstrapped isoform diversity of the gene for cells in `group.1`.}
 #'       \item{`avgDiv.2`}{Average of bootstrapped isoform diversity of the gene for cells in `group.2`.}
 #'       \item{`delta.div`}{The difference in averaged isoform diversities between groups (`group.1` - `group.2`).}
@@ -457,16 +457,13 @@ RunDIV <- function (
 
     ## stats and data output
     div_stats <- comp_result %>%
-      left_join(., gene_dr_df[, c("gene.pct.grp1", "gene.pct.grp2", "gene.id")], by = "gene.id") %>%
-      left_join(., n_transcripts_df, by = "gene.id") %>%
       rename("group.1" = grp.1,
              "group.2" = grp.2,
-             "gene" = "gene.id",
-             "gene.pct.1" = "gene.pct.grp1",
-             "gene.pct.2" = "gene.pct.grp2",
+             "gene" = gene.id,
              "div.class.1" = class.1,
              "div.class.2" = class.2) %>%
-      select(group.1, group.2, gene, gene.pct.1, gene.pct.2, n.transcripts, avgDiv.1, avgDiv.2, delta.div, log2FC, everything())
+      select(group.1, group.2, gene, avgDiv.1, avgDiv.2, delta.div, log2FC, everything())
+
     tmp <- boot_result
     boot_result <- boot_result %>%
       t() %>%
@@ -485,11 +482,17 @@ RunDIV <- function (
       "grp.1" = grp1,
       "grp.2" = grp2,
       "div.1" = I(div.grp1),
-      "div.2" = I(div.grp2)) %>%
-      select(grp.1, grp.2, gene.id, div.1, div.2) %>%
-      rename("gene" = "gene.id",
+      "div.2" = I(div.grp2))
+
+    div_data <- div_data %>%
+      left_join(., gene_dr_df[, c("gene.pct.grp1", "gene.pct.grp2", "gene.id")], by = "gene.id") %>%
+      left_join(., n_transcripts_df, by = "gene.id") %>%
+      rename("gene" = gene.id,
              "group.1" = grp.1,
-             "group.2" = grp.2)
+             "group.2" = grp.2,
+             "gene.pct.1" = gene.pct.grp1,
+             "gene.pct.2" = gene.pct.grp2) %>%
+      select(group.1, group.2, gene, gene.pct.1, gene.pct.2, n.transcripts, div.1, div.2)
 
     ## update list
     data_list[[comp]] <- div_data
@@ -505,6 +508,9 @@ RunDIV <- function (
     return_list$data <- data.frame("group.1" = character(),
                                    "group.2" = character(),
                                    "gene" = character(),
+                                   "gene.pct.1" = numeric(),
+                                   "gene.pct.2" = numeric(),
+                                   "n.transcripts" = numeric(),
                                    "div.1" = numeric(),
                                    "div.2" = numeric())
   }
@@ -516,9 +522,6 @@ RunDIV <- function (
     return_list$stats <- data.frame("group.1" = character(),
                                     "group.2" = character(),
                                     "gene" = character(),
-                                    "gene.pct.1" = numeric(),
-                                    "gene.pct.2" = numeric(),
-                                    "n.transcripts" = numeric(),
                                     "avgDiv.1" = numeric(),
                                     "avgDiv.2" = numeric(),
                                     "log2FC" = numeric(),
