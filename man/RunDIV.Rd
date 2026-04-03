@@ -64,7 +64,6 @@ A list containing two data frames:
 \item{\verb{$data}}{
 A data frame of summarized data with columns:
 \describe{
-\item{\code{boot.iter}}{Bootstrap iteration number.}
 \item{\code{group.1} & \code{group.2}}{The two cell groups being compared.}
 \item{\code{gene}}{The gene being tested.}
 \item{\code{div.1}}{Bootstrapped isoform diversity values of each gene for \code{group.1}.}

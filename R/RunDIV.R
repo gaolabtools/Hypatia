@@ -28,7 +28,6 @@
 #'   \item{`$data`}{
 #'     A data frame of summarized data with columns:
 #'     \describe{
-#'       \item{`boot.iter`}{Bootstrap iteration number.}
 #'       \item{`group.1` & `group.2`}{The two cell groups being compared.}
 #'       \item{`gene`}{The gene being tested.}
 #'       \item{`div.1`}{Bootstrapped isoform diversity values of each gene for `group.1`.}
@@ -62,7 +61,7 @@
 #' @import SummarizedExperiment
 #' @import dplyr
 #' @importFrom tidyr unite
-#' @importFrom purrr reduce
+#' @importFrom purrr reduce map transpose
 #' @importFrom stats wilcox.test
 
 RunDIV <- function (
@@ -468,14 +467,26 @@ RunDIV <- function (
              "div.class.1" = class.1,
              "div.class.2" = class.2) %>%
       select(group.1, group.2, gene, gene.pct.1, gene.pct.2, n.transcripts, avgDiv.1, avgDiv.2, delta.div, log2FC, everything())
-
-    div_data <- boot_result %>%
+    tmp <- boot_result
+    boot_result <- boot_result %>%
       t() %>%
       as.data.frame() %>%
-      mutate(boot.iter = rownames(.), .before ="gene.id",
-             grp.1 = unique(unlist(grp.1)),
-             grp.2 = unique(unlist(grp.2))) %>%
-      select(boot.iter, grp.1, grp.2, gene.id, div.1, div.2) %>%
+      mutate(grp.1 = unique(unlist(grp.1)),
+             grp.2 = unique(unlist(grp.2)))
+
+    genes <- boot_result$gene.id[[1]]
+    grp1 <- rep(boot_result$grp.1[1], length(genes))
+    grp2 <- rep(boot_result$grp.2[1], length(genes))
+    div.grp1 <- map(transpose(boot_result$div.1), unlist)
+    div.grp2 <- map(transpose(boot_result$div.2), unlist)
+
+    div_data <- data.frame(
+      "gene.id" = genes,
+      "grp.1" = grp1,
+      "grp.2" = grp2,
+      "div.1" = I(div.grp1),
+      "div.2" = I(div.grp2)) %>%
+      select(grp.1, grp.2, gene.id, div.1, div.2) %>%
       rename("gene" = "gene.id",
              "group.1" = grp.1,
              "group.2" = grp.2)
