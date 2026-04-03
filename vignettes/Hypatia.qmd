@@ -1,6 +1,6 @@
 ---
 title: "Hypatia"
-subtitle: "Single-Cell RNA Isoform Analysis of Population-Specific Isoforms"
+subtitle: "Single-Cell RNA Isoform Analysis"
 author: "Timothy Pan"
 date: today
 date-format: short
@@ -40,10 +40,13 @@ h1.title {
 
 RNA isoforms diversify the coding capacity of the genome and have significant implications in health and disease. Long-read single-cell RNA-sequencing (LR-scRNAseq) enables the investigation of RNA isoforms at cell type resolution. Hypatia is a computational suite in R for data analysis across 3 modules: 1) isoform usage, which identifies differential isoform usage events (DIUs), 2) isoform diversity, which identifies differential isoform diversity events (DIVs), and 3) isoform expression, which identifies differentially expressed isoforms (DEIs). 
 
-Check out our <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">*paper*</a> for more details on Hypatia. If you found this tool useful, please remember to cite us:
+Check out our <a href="https://www.biorxiv.org/content/10.64898/2026.01.13.699341v2" target="_blank">*preprint*</a> for more details on Hypatia. If you found this tool useful in your research, please remember to cite us:
 
-``` python
- 
+```default
+Pan, T., Shiau, C. K., Lu, L., Wang, C., Wang, M., He, Y., Bhimaraj, A., Brat, D., Huse, J.,
+Jessica Li, J., & Gao, R. (2026). Hypatia: Comparative Isoform Profiling Across Cell Populations
+ from Long-Read Single-Cell Transcriptomes. bioRxiv : the preprint server for biology,
+ 2026.01.13.699341. https://doi.org/10.64898/2026.01.13.699341
 ```
 
 # Setup 
@@ -563,11 +566,13 @@ Isoform diversity is a measure of the heterogeneity of transcript isoforms produ
 
 ### RunDIV
 
-`RunDIV()` compares isoform diversity using the Wilcoxon test. Gene-level diversities across cell groups are estimated by bootstrap iterations following gene filtering. By default, the Tsallis entropy is calculated. Genes are also classified as monoform or polyform. Refer to the help page (`?RunDIV`) for more details on parameters. The usage is similar to Hypatia's other 'Run' functions:
+`RunDIV()` compares isoform diversity using the Wilcoxon test. Gene-level diversities across cell groups are estimated by bootstrap iterations following gene filtering. By default, the Tsallis entropy is calculated. Genes are also classified as monoform or polyform. Set a random seed to ensure that results are reproducible. Refer to the help page (`?RunDIV`) for more details on parameters. The usage is similar to Hypatia's other 'Run' functions:
 
 ```{r rundiv}
 #| eval: false
 #| echo: true
+
+set.seed(1024)
 
 # Each cell group vs all other cells
 gbm_div <- RunDIV(gbm)
