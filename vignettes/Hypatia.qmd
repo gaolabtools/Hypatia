@@ -591,11 +591,10 @@ glutvsgaba_div <- RunDIV(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 
 `$data` contains the bootstrapped isoform diversity data used to generate the statistical output.
 
-- `boot.iter`: Bootstrap iteration number.
 - `group.1` & `group.2`: The two cell groups being compared.
-- `gene`: Gene list for which the isoform diversity is computed.
-- `div.1`: Bootstrapped isoform diversity of the gene for cells in `group.1`, ordered by `gene`.
-- `div.2`: Bootstrapped isoform diversity of the gene for cells in `group.2`, ordered by `gene`.
+- `gene`: Gene for which the isoform diversity is computed and compared.
+- `div.1`: Bootstrapped isoform diversities of the gene for cells in `group.1`.
+- `div.2`: Bootstrapped isoform diversities of the gene for cells in `group.2`.
 
 `$stats` contains results from the statistical tests.
 
