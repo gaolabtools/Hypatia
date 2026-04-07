@@ -21,6 +21,8 @@
 \alias{rowRanges<-}
 \alias{colData}
 \alias{rowData}
+\alias{rowData<-}
+\alias{colData<-}
 \alias{metadata}
 \alias{metadata<-}
 \alias{mcols}
@@ -36,6 +38,6 @@ below to see their documentation.
 
   \item{SingleCellExperiment}{\code{\link[SingleCellExperiment:assays]{counts}}, \code{\link[SingleCellExperiment:assays]{counts<-}}, \code{\link[SingleCellExperiment:altExps]{mainExpName}}, \code{\link[SingleCellExperiment:altExps]{mainExpName<-}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDim}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDim<-}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDimNames}}, \code{\link[SingleCellExperiment:reducedDims]{reducedDimNames<-}}, \code{\link[SingleCellExperiment]{SingleCellExperiment}}}
 
-  \item{SummarizedExperiment}{\code{\link[SummarizedExperiment:SummarizedExperiment-class]{assay}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assay<-}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assayNames}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assays}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assays<-}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assays<-}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{colData}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{rowData}}, \code{\link[SummarizedExperiment:RangedSummarizedExperiment-class]{rowRanges}}, \code{\link[SummarizedExperiment:RangedSummarizedExperiment-class]{rowRanges<-}}}
+  \item{SummarizedExperiment}{\code{\link[SummarizedExperiment:SummarizedExperiment-class]{assay}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assay<-}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assayNames}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assays}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{assays<-}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{colData}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{colData<-}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{rowData}}, \code{\link[SummarizedExperiment:SummarizedExperiment-class]{rowData<-}}, \code{\link[SummarizedExperiment:RangedSummarizedExperiment-class]{rowRanges}}, \code{\link[SummarizedExperiment:RangedSummarizedExperiment-class]{rowRanges<-}}}
 }}
 

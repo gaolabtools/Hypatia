@@ -18,7 +18,7 @@ SingleCellExperiment::mainExpName
 #' @export
 SingleCellExperiment::`mainExpName<-`
 
-#' @importFrom SummarizedExperiment assay assay<- assayNames assays assays<- rowRanges rowRanges<- colData rowData
+#' @importFrom SummarizedExperiment assay assay<- assayNames assays assays<- rowRanges rowRanges<- colData rowData colData<- rowData<-
 #' @export
 SummarizedExperiment::assay
 #' @export
@@ -30,8 +30,6 @@ SummarizedExperiment::assays
 #' @export
 SummarizedExperiment::`assays<-`
 #' @export
-SummarizedExperiment::`assays<-`
-#' @export
 SummarizedExperiment::rowRanges
 #' @export
 SummarizedExperiment::`rowRanges<-`
@@ -39,6 +37,10 @@ SummarizedExperiment::`rowRanges<-`
 SummarizedExperiment::colData
 #' @export
 SummarizedExperiment::rowData
+#' @export
+SummarizedExperiment::`rowData<-`
+#' @export
+SummarizedExperiment::`colData<-`
 
 #' @importFrom S4Vectors metadata metadata<- mcols mcols<-
 #' @export
