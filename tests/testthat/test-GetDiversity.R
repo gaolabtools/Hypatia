@@ -22,3 +22,49 @@ test_that("GetDiversity works", {
   expect_class(res, "data.frame")
 
 })
+
+test_that("NormalizedShannon equals Shannon / log(2)", {
+
+  gbm <-
+    CreateSCE(
+      countData = gbm_countData,
+      colData = gbm_colData,
+      rowData = gbm_rowData,
+      quiet = TRUE,
+      active.group.id = "cell_type"
+    )
+
+  genes <- unique(gbm_rowData$gene_id)[1:5]
+
+  res_sh <- GetDiversity(gbm, genes = genes, min.tx.cts = 0,
+                         entropy.use = "Shannon")
+  res_norm <- GetDiversity(gbm, genes = genes, min.tx.cts = 0,
+                           entropy.use = "NormalizedShannon")
+
+  expect_equal(res_norm$div, res_sh$div / log(2))
+  expect_equal(res_norm$div.class, res_sh$div.class)
+
+})
+
+test_that("NormalizedRenyi equals Renyi / log(2)", {
+
+  gbm <-
+    CreateSCE(
+      countData = gbm_countData,
+      colData = gbm_colData,
+      rowData = gbm_rowData,
+      quiet = TRUE,
+      active.group.id = "cell_type"
+    )
+
+  genes <- unique(gbm_rowData$gene_id)[1:5]
+
+  res_ren <- GetDiversity(gbm, genes = genes, min.tx.cts = 0,
+                          entropy.use = "Renyi")
+  res_norm <- GetDiversity(gbm, genes = genes, min.tx.cts = 0,
+                           entropy.use = "NormalizedRenyi")
+
+  expect_equal(res_norm$div, res_ren$div / log(2))
+  expect_equal(res_norm$div.class, res_ren$div.class)
+
+})
