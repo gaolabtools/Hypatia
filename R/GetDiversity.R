@@ -146,8 +146,8 @@ GetDiversity <- function (
         -sum(x[x > 0] * log(x[x > 0]))
       }
       else if (entropy.use == "NormalizedShannon") {
-        n_x <- sum(x > 0)
-        (-sum(x[x > 0] * log(x[x > 0]))) / (log(n_x))
+        x <- head(sort(x, decreasing = TRUE), 2)
+        (-sum(x[x > 0] * log(x[x > 0]))) / log(2)
       }
       else if (entropy.use == "Renyi") {
         if (is.null(order)) {order <- 2}
@@ -156,8 +156,8 @@ GetDiversity <- function (
       }
       else if (entropy.use == "NormalizedRenyi") {
         if (is.null(order)) {order <- 2}
-        n_x <- sum(x > 0)
-        (1 / (1 - order)) * log( sum( (x[x > 0])^order ) ) / (log(n_x))
+        x <- head(sort(x, decreasing = TRUE), 2)
+        (1 / (1 - order)) * log( sum( (x[x > 0])^order ) ) / log(2)
       }
       else if (entropy.use == "GiniSimpson") {
         # x <- head(sort(x, decreasing = TRUE), 2)
@@ -175,9 +175,9 @@ GetDiversity <- function (
     ## diversity threshold
     if (is.null(entropy.thresh)) {
       if (entropy.use == "Shannon") {entropy.thresh <- 0.500}
-      else if (entropy.use == "NormalizedShannon") {entropy.thresh <- 0}
+      else if (entropy.use == "NormalizedShannon") {entropy.thresh <- 0.500 / log(2)}
       else if (entropy.use == "Renyi") {entropy.thresh <- 0.435}
-      else if (entropy.use == "NormalizedRenyi") {entropy.thresh <- 0}
+      else if (entropy.use == "NormalizedRenyi") {entropy.thresh <- 0.435 / log(2)}
       else if (entropy.use == "GiniSimpson") {entropy.thresh <- 0.348}
       else if (entropy.use == "Tsallis") {entropy.thresh <- 0.243}
       else if (entropy.use == "InverseSimpson") {entropy.thresh <- 1.533}
