@@ -10,7 +10,7 @@
 #' Options include `"Tsallis"`, `"Shannon"`, `"NormalizedShannon"`, `"Renyi"`, `"NormalizedRenyi"`, `"GiniSimpson"`, or `InverseSimpson`.
 #' @param assay.use Which `assay` (counts) to use.
 #' @param entropy.thresh The threshold of the diversity index used for monoform and polyform classification.
-#' Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shannon, 0.435 for Renyi, 0 for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.
+#' Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0.500 / log(2) (~0.721) for normalized Shannon, 0.435 for Renyi, 0.435 / log(2) (~0.628) for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.
 #' @param min.tx.cts Minimum transcript counts required for a transcript to be included in the contingency table.
 #' @param order Value specifying the order of entropy. Corresponds to `q` for Tsallis (default: 3) and `alpha` for Renyi (default: 2).
 #' @param quiet Logical; if `TRUE`, suppresses messages.

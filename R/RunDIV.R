@@ -12,7 +12,7 @@
 #' Options include `"Tsallis"`, `"Shannon"`, `"NormalizedShannon"`, `"Renyi"`, `"NormalizedRenyi"`, `"GiniSimpson"`, or `InverseSimpson`. The default is `"Tsallis"`.
 #' @param assay.use Which `assay` (counts) to use.
 #' @param entropy.thresh Diversity index threshold to use for monoform and polyform classifications.
-#' Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shannon, 0.435 for Renyi, 0 for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.
+#' Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0.500 / log(2) (~0.721) for normalized Shannon, 0.435 for Renyi, 0.435 / log(2) (~0.628) for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.
 #' @param min.gene.pct Minimum percentage of cells in which a gene must be expressed in both groups for it to be tested.
 #' @param min.gene.cts Minimum total transcript counts in which a gene must be have in both groups for it be tested.
 #' @param min.tx.cts Minimum transcript counts required for a transcript to be included in the contingency table.
