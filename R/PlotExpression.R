@@ -1,20 +1,20 @@
 #' Visualize isoform expression
 #'
-#' Generates plots showing the isoform expression of one or more transcripts.
+#' Plots transcript expression across cell groups or embeddings.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param transcripts A vector of one or more transcript IDs.
-#' @param group.by Name of `colData` variable to group cells. If `NULL`, `metadata(object)$active.group.id` will be used.
-#' @param group.subset An optional vector specifying a subset of the elements in `group.by` to include.
-#' @param group.order An optional vector specifying the order of group elements.
-#' @param plot.type Which type of plot to generate. Options include `"violin"`, `"reducedDim"`, and `"heatmap"`.
+#' @param transcripts Vector of active transcript IDs to plot.
+#' @param group.by One or more `colData` column names used to define cell groups. If `NULL`, `metadata(object)$active.group.id` is used.
+#' @param group.subset Optional vector of group labels to include.
+#' @param group.order Optional vector of group labels specifying plotting order.
+#' @param plot.type Plot type: `"violin"`, `"reducedDim"`, or `"heatmap"`.
 #' @param colors A vector of colors to use for the plot.
 #' @param colors.heatmap A vector of colors for the heatmap color bar.
-#' @param dim.use Name of dimensions to use in the `reducedDim` slot of the object. This parameter is for the `reducedDim` plot type.
-#' @param assay.use Which `assay` (counts) to use.
+#' @param dim.use Name of the `reducedDim` slot to use when `plot.type = "reducedDim"`.
+#' @param assay.use Assay name to use.
 #' @param scale.heatmap Logical; if `TRUE`, standardizes and clips expression values for the heatmap.
 #' @param pt.size Point size for the `violin` and `reducedDim` plots.
-#' @param pt.alpha Point alpha for the `violin` and `reducedDim`` plots.
+#' @param pt.alpha Point alpha for the `violin` and `reducedDim` plots.
 #' @param text.size Text size.
 #' @param label Logical; if `TRUE`, adds cell group labels to the `reducedDim` and `heatmap` plots.
 #' @param show.gene Logical; if `TRUE`, shows the active gene ID alongside transcript names.
@@ -28,9 +28,8 @@
 #' @import SummarizedExperiment
 #' @import dplyr
 #' @import ggplot2
-#' @importFrom tidyr pivot_longer unite
+#' @importFrom tidyr pivot_longer
 #' @importFrom ggnewscale new_scale_fill
-#' @importFrom grDevices colorRampPalette
 #' @importFrom stats median
 
 PlotExpression <- function(
@@ -81,40 +80,25 @@ PlotExpression <- function(
   assertFlag(quiet)
 
   # Transcript and gene IDs
-  assertString(metadata(object)$active.transcript.id)
-  assertString(metadata(object)$active.gene.id)
-  active.transcript.id <- metadata(object)$active.transcript.id
-  active.gene.id <- metadata(object)$active.gene.id
-  assertChoice(active.gene.id, colnames(rowData(object)))
-  assertFALSE(anyMissing(rowData(object)[[active.gene.id]]))
-
-  if (metadata(object)$active.transcript.id != "") {
-    assertChoice(active.transcript.id, colnames(rowData(object)))
-    assertFALSE(any(duplicated(rowData(object)[[active.transcript.id]])))
-    assertFALSE(anyMissing(rowData(object)[[active.transcript.id]]))
-    rownames(object) <- rowData(object)[[active.transcript.id]]
-  }
+  active_ids <- .ActiveIds(object)
+  object <- active_ids$object
+  active.transcript.id <- active_ids$active.transcript.id
+  active.gene.id <- active_ids$active.gene.id
 
   # Transcript selection
-  missing_transcripts <- setdiff(transcripts, rownames(object))
-  assertFALSE(length(missing_transcripts) == length(unique(transcripts)))
-  if (length(missing_transcripts) > 0) {
-    if (!quiet) message("\u2139 Warning: The following transcripts were not found in the object: '", paste0(missing_transcripts, collapse = "', '"), "'.")
-    transcripts <- transcripts[transcripts %in% rownames(object)]
-  }
+  transcript_filter <- .FilterTranscripts(object, transcripts, quiet = quiet)
+  transcripts <- transcript_filter$transcripts
 
   # Group structure
-  colData(object)$group_var <- colData(object) %>%
-    as.data.frame() %>%
-    unite("group_var", all_of(group.by), sep = "_", remove = FALSE) %>%
-    pull(group_var)
+  colData(object)$group_var <- .GroupVar(object, group.by)
   unique_groups <- unique(colData(object)$group_var)
+  group_label <- paste0(group.by, collapse = "_")
   ## check group subset
   assertSubset(group.subset, unique_groups, empty.ok = TRUE)
 
   ## subset cells
   if (!is.null(group.subset)) {
-    object <- object[, colData(object)$group_var %in% group.subset]
+    object <- object[, colData(object)$group_var %in% group.subset, drop = FALSE]
   }
   ## order groups
   if (!is.null(group.order)) {
@@ -161,9 +145,9 @@ PlotExpression <- function(
       geom_violin(aes(fill = grouping_var)) +
       geom_point(size = pt.size, alpha = pt.alpha, position = position_jitter(width = 0.2), show.legend = FALSE) +
       facet_wrap(~ transcript, scales = "fixed", axes = "all", axis.labels = "all", nrow = nrow) +
-      labs(fill = paste0(group.by, collapse = "_")) +
+      labs(fill = group_label) +
       ylab(assay.use) +
-      xlab(paste0(group.by, collapse = "_")) +
+      xlab(group_label) +
       theme_linedraw(base_size = text.size) +
       theme(plot.title = element_text(hjust = 0.5, face = "bold"),
             axis.text.x = element_text(angle = 45, hjust = 1),
@@ -176,11 +160,7 @@ PlotExpression <- function(
     } else {
       colors <- c("#A5D1B0", "#CE8A8D", "#FFF7C1", "#E0F3FF", "#ADD3F4",
                   "#F7C9CF", "#FEE4E8", "#7CA3B8", "#BFB8D6", "#FCCB8E")
-      n_colors <- length(group_var_order)
-      if (length(n_colors) > length(colors)) {
-        cont_palette <- colorRampPalette(colors)
-        colors <- cont_palette(length(group_var_order))
-      }
+      colors <- .DefaultDiscreteColors(length(group_var_order), colors)
       p1 <- p1 +
         scale_fill_manual(values = colors)
     }
@@ -284,11 +264,7 @@ PlotExpression <- function(
     if (is.null(colors)) {
       colors <- c("#A5D1B0", "#CE8A8D", "#FFF7C1", "#E0F3FF", "#ADD3F4",
                   "#F7C9CF", "#FEE4E8", "#7CA3B8", "#BFB8D6", "#FCCB8E")
-      n_colors <- length(group_var_order)
-      if (n_colors > length(colors)) {
-        cont_palette <- colorRampPalette(colors)
-        colors <- cont_palette(length(n_colors))
-      }
+      colors <- .DefaultDiscreteColors(length(group_var_order), colors)
     }
     if (is.null(colors.heatmap)) {
       colors.heatmap <- c("#0D47A1", "black", "#FFEB3B")
@@ -304,10 +280,10 @@ PlotExpression <- function(
       geom_tile(data = group_anno,
                 mapping = aes(x = heatmap_cellIDs, y = y_pos, fill = grouping_var),
                 height = anno_bar_height) +
-      scale_fill_manual(values = colors, name = paste0(group.by, collapse = "_")) +
+      scale_fill_manual(values = colors, name = group_label) +
 
       ylab(active.transcript.id) +
-      xlab(paste0(group.by, collapse = "_")) +
+      xlab(group_label) +
       theme_linedraw(base_size = text.size) +
       theme(axis.text.x.bottom = element_blank(),
             axis.text.x.top = element_text(angle = 45, hjust = 0),
@@ -325,6 +301,3 @@ PlotExpression <- function(
   p1
 
 }
-
-
-

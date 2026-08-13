@@ -2,19 +2,18 @@
 % Please edit documentation in R/SetTranscripts.R
 \name{SetTranscripts}
 \alias{SetTranscripts}
-\title{Set the active transcript ID}
+\title{Set active transcript IDs}
 \usage{
 SetTranscripts(object, id)
 }
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{id}{Name of \code{rowData} column containing unique transcript IDs.
-Set to \code{""} to use the transcript IDs (row names) of original count matrix.}
+\item{id}{Name of the \code{rowData} column containing unique transcript IDs. Use \code{""} to report row names.}
 }
 \value{
-Returns object with updated \code{active.transcript.id} stored in \code{metadata(object)}.
+The object with \code{metadata(object)$active.transcript.id} updated.
 }
 \description{
-Update the active transcript ID for downstream functions.
+Selects the \code{rowData} column used as transcript IDs in downstream functions.
 }

@@ -1,20 +1,18 @@
 #' Visualize isoform diversity
 #'
-#' Generates plots showing the isoform diversity of one or more genes.
+#' Plots isoform diversity for one or more genes across cell groups.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param genes A vector of one or more gene IDs.
-#' @param group.by Name of `colData` variable to group cells. If `NULL`, `metadata(object)$active.group.id` will be used.
-#' @param group.subset An optional vector specifying a subset of the elements in `group.by` to include.
-#' @param group.order An optional vector specifying the order of group elements.
-#' @param plot.type Which type of plot to generate. Options include `"lollipop"`, `"density"`, and `"pcoord"`.
-#' @param entropy.use The diversity index to calculate.
-#' Options include `"Tsallis"`, `"Shannon"`, `"NormalizedShannon"`, `"Renyi"`, `"NormalizedRenyi"`, `"GiniSimpson"`, or `InverseSimpson`.
-#' @param assay.use Which `assay` (counts) to use.
-#' @param entropy.thresh The threshold of the diversity index used for monoform and polyform classification.
-#' Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shannon, 0.435 for Renyi, 0 for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.
-#' @param min.tx.cts Minimum transcript counts required for a transcript to be included in the contingency table.
-#' @param order Value specifying the order of entropy. Corresponds to `q` for Tsallis (default: 3) and `alpha` for Renyi (default: 2).
+#' @param genes Vector of active gene IDs to plot.
+#' @param group.by One or more `colData` column names used to define cell groups. If `NULL`, `metadata(object)$active.group.id` is used.
+#' @param group.subset Optional vector of group labels to include.
+#' @param group.order Optional vector of group labels specifying plotting order.
+#' @param plot.type Plot type: `"lollipop"`, `"density"`, or `"pcoord"`.
+#' @param entropy.use Diversity index: `"Tsallis"`, `"Shannon"`, `"NormalizedShannon"`, `"Renyi"`, `"NormalizedRenyi"`, `"GiniSimpson"`, or `"InverseSimpson"`.
+#' @param assay.use Assay name to use.
+#' @param entropy.thresh Threshold used to classify genes as `"monoform"` or `"polyform"`. If `NULL`, a method-specific default is used.
+#' @param min.tx.cts Minimum transcript counts required before diversity is calculated.
+#' @param order Entropy order. Corresponds to `q` for Tsallis and `alpha` for Renyi.
 #' @param colors A vector of colors to use for the plot.
 #' @param text.size Text size.
 #' @param nrow Number of facet rows.
@@ -28,8 +26,6 @@
 #' @import dplyr
 #' @import ggplot2
 #' @importFrom Matrix rowSums
-#' @importFrom tidyr unite
-#' @importFrom grDevices colorRampPalette
 
 PlotDiversity <- function (
     object,
@@ -73,47 +69,28 @@ PlotDiversity <- function (
   assertNumber(nrow, lower = 1, finite = TRUE)
   assertFlag(quiet)
 
-  # Transcript and gene IDs
-  assertString(metadata(object)$active.transcript.id)
-  assertString(metadata(object)$active.gene.id)
-  active.transcript.id <- metadata(object)$active.transcript.id
-  active.gene.id <- metadata(object)$active.gene.id
-  assertChoice(active.gene.id, colnames(rowData(object)))
-  assertFALSE(anyMissing(rowData(object)[[active.gene.id]]))
+  div.func <- .DiversityFunction(entropy.use, order)
+  entropy.thresh <- .DiversityThreshold(entropy.use, entropy.thresh)
 
-  if (metadata(object)$active.transcript.id != "") {
-    assertChoice(active.transcript.id, colnames(rowData(object)))
-    assertFALSE(any(duplicated(rowData(object)[[active.transcript.id]])))
-    assertFALSE(anyMissing(rowData(object)[[active.transcript.id]]))
-    rownames(object) <- rowData(object)[[active.transcript.id]]
-  }
+  # Transcript and gene IDs
+  active_ids <- .ActiveIds(object)
+  object <- active_ids$object
+  active.gene.id <- active_ids$active.gene.id
 
   # Gene filter
-  if (any(genes %in% unique(rowData(object)[[active.gene.id]]))) {
-    missing_genes <- setdiff(genes, unique(rowData(object)[[active.gene.id]]))
-    if (length(missing_genes) == length(genes)) {
-      stop("None of the genes were found in the object. (Check active.gene.id?)")
-    }
-    if (length(missing_genes) > 0) {
-      if (!quiet) message("\u2139 Warning: The following genes were not found in the object: '", paste0(missing_genes, collapse = "', '"), "'.")
-      genes <- genes[genes %in% unique(rowData(object)[[active.gene.id]])]
-    }
-    object <- object[rowData(object)[[active.gene.id]] %in% genes, , drop = FALSE]
-  } else {
-    stop("None of the genes were found in the object. (Check active.gene.id?)")
-  }
+  gene_filter <- .FilterGenes(object, genes, active.gene.id, quiet = quiet)
+  object <- gene_filter$object
+  genes <- gene_filter$genes
 
   # Group structure
-  colData(object)$group_var <- colData(object) %>%
-    as.data.frame() %>%
-    unite("group_var", all_of(group.by), sep = "_", remove = FALSE) %>%
-    pull(group_var)
+  colData(object)$group_var <- .GroupVar(object, group.by)
   unique_groups <- unique(colData(object)$group_var)
+  group_label <- paste0(group.by, collapse = "_")
   ## check groups
   if (!is.null(group.subset)) {
     assertSubset(group.subset, unique_groups)
     ## subset object for groups
-    object <- object[, object$group_var %in% group.subset]
+    object <- object[, object$group_var %in% group.subset, drop = FALSE]
     unique_groups <- unique(colData(object)$group_var)
   }
   ## order groups
@@ -134,7 +111,7 @@ PlotDiversity <- function (
   for (group in unique_groups) {
 
     ## subset group
-    object_grp <- object[, object$group_var == group]
+    object_grp <- object[, object$group_var == group, drop = FALSE]
 
     ## gene pct
     gene_groups <- rowData(object_grp)[[active.gene.id]]
@@ -154,51 +131,6 @@ PlotDiversity <- function (
     agg_cts_df <- agg_cts_df %>%
       dplyr::filter(cts >= min.tx.cts) %>%
       mutate("group_var" = group)
-
-    ## calculate diversity
-    div.func <- function(x) {
-
-      if (entropy.use == "Shannon") {
-        x <- head(sort(x, decreasing = TRUE), 2)
-        -sum(x[x > 0] * log(x[x > 0]))
-      }
-      else if (entropy.use == "NormalizedShannon") {
-        n_x <- sum(x > 0)
-        (-sum(x[x > 0] * log(x[x > 0]))) / (log(n_x))
-      }
-      else if (entropy.use == "Renyi") {
-        if (is.null(order)) {order <- 2}
-        x <- head(sort(x, decreasing = TRUE), 2)
-        (1 / (1 - order)) * log( sum( (x[x > 0])^order ) )
-      }
-      else if (entropy.use == "NormalizedRenyi") {
-        if (is.null(order)) {order <- 2}
-        n_x <- sum(x > 0)
-        (1 / (1 - order)) * log( sum( (x[x > 0])^order ) ) / (log(n_x))
-      }
-      else if (entropy.use == "GiniSimpson") {
-        # x <- head(sort(x, decreasing = TRUE), 2)
-        1 - sum( (x[x > 0])^2 )
-      }
-      else if (entropy.use == "Tsallis") {
-        if (is.null(order)) {order <- 3}
-        (1 - sum(x[x > 0]^order)) / (order - 1)
-      }
-      else if (entropy.use == "InverseSimpson") {
-        1 / sum( (x[x > 0])^2 )
-      }
-    }
-
-    ## diversity threshold
-    if (is.null(entropy.thresh)) {
-      if (entropy.use == "Shannon") {entropy.thresh <- 0.500}
-      else if (entropy.use == "NormalizedShannon") {entropy.thresh <- 0}
-      else if (entropy.use == "Renyi") {entropy.thresh <- 0.435}
-      else if (entropy.use == "NormalizedRenyi") {entropy.thresh <- 0}
-      else if (entropy.use == "GiniSimpson") {entropy.thresh <- 0.348}
-      else if (entropy.use == "Tsallis") {entropy.thresh <- 0.243}
-      else if (entropy.use == "InverseSimpson") {entropy.thresh <- 1.533}
-    }
 
     div_res <- agg_cts_df %>%
       group_by(gene_query) %>%
@@ -225,19 +157,11 @@ PlotDiversity <- function (
     group_colors <- c("#A5D1B0", "#CE8A8D", "#FFF7C1", "#E0F3FF", "#ADD3F4",
                       "#F7C9CF", "#FEE4E8", "#7CA3B8", "#BFB8D6", "#FCCB8E")
     n_group_colors <- length(unique(plotdata$group_var))
-    if (n_group_colors > length(group_colors)) {
-      group_cont_palette <- colorRampPalette(group_colors)
-      group_colors <- group_cont_palette(n_group_colors)
-    }
+    group_colors <- .DefaultDiscreteColors(n_group_colors, group_colors)
 
     gene_colors <- c("#FBB463", "#80B1D3", "#F47F72", "#BDBAD8", "#FBF8B4", "#8DD1C6")
     n_gene_colors <- length(unique(plotdata$gene_query))
-    gene_cont_palette <- colorRampPalette(gene_colors)
-    gene_colors <- gene_cont_palette(n_gene_colors)
-    if (n_gene_colors > length(gene_colors)) {
-      group_cont_palette <- colorRampPalette(group_colors)
-      group_colors <- group_cont_palette(n_group_colors)
-    }
+    gene_colors <- .DefaultDiscreteColors(n_gene_colors, gene_colors)
   }
 
   # Lollipop plot
@@ -253,7 +177,7 @@ PlotDiversity <- function (
                  size = 3, position = position_dodge(width = 0.8)) +
       scale_linetype_manual(values = c("monoform" = "solid", "polyform" = "dashed"),
                             breaks = c("monoform", "polyform"), na.translate = FALSE) +
-      labs(color = group.by, linetype = "class") +
+      labs(color = group_label, linetype = "class") +
       xlab(active.gene.id) +
       ylab("Diversity") +
       theme_linedraw(base_size = text.size) +
@@ -281,7 +205,7 @@ PlotDiversity <- function (
       scale_shape_manual(values = c("monoform" = 19, "polyform" = 21),
                          breaks = c("monoform", "polyform"), na.translate = FALSE) +
       labs(color = active.gene.id, linetype = "class") +
-      xlab(group.by) +
+      xlab(group_label) +
       ylab("Diversity") +
       theme_linedraw(base_size = text.size) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1),
@@ -303,7 +227,7 @@ PlotDiversity <- function (
       ggplot() +
       geom_density(aes(x = diversity, fill = group_var)) +
       facet_wrap(~ group_var, nrow = nrow) +
-      labs(fill = group.by) +
+      labs(fill = group_label) +
       xlab("Diversity") +
       ylab("Density") +
       theme_linedraw(base_size = text.size) +

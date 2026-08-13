@@ -1,18 +1,18 @@
-#' Set the active gene ID.
+#' Set active gene IDs
 #'
-#' Updates the active gene ID (gene symbols, ENSG IDs, etc.) for downstream functions.
+#' Selects the `rowData` column used as gene IDs in downstream functions.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param id Name of `rowData` column containing gene IDs associated with each transcript.
+#' @param id Name of the `rowData` column containing gene IDs.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
-#' @returns Returns object with updated `active.gene.id` stored in `metadata(object)`.
+#' @returns The object with `metadata(object)$active.gene.id` updated.
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment
 #' @importFrom S4Vectors metadata metadata<-
 
-SetGenes <- function (
+SetGenes <- function(
     object,
     id,
     quiet = FALSE
@@ -24,12 +24,27 @@ SetGenes <- function (
   assertFlag(quiet)
 
   prev.active.gene.id <- metadata(object)$active.gene.id
+  assertString(prev.active.gene.id)
+
   prev.unique.len <- length(unique(rowData(object)[[prev.active.gene.id]]))
   new.unique.len <- length(unique(rowData(object)[[id]]))
   if (prev.unique.len != new.unique.len) {
-    if (!quiet) message("\u2139 Warning: The new active.gene.id '", id, "' has different number of unique genes from the previous '", prev.active.gene.id, "' (", new.unique.len, " vs ", prev.unique.len, ").")
+    if (!quiet) {
+      message(
+        "\u2139 Warning: The new active.gene.id '",
+        id,
+        "' has different number of unique genes from the previous '",
+        prev.active.gene.id,
+        "' (",
+        new.unique.len,
+        " vs ",
+        prev.unique.len,
+        ")."
+      )
+    }
   }
 
   metadata(object)$active.gene.id <- id
+
   return(object)
 }

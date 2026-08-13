@@ -1,18 +1,17 @@
-#' Set the active transcript ID
+#' Set active transcript IDs
 #'
-#' Update the active transcript ID for downstream functions.
+#' Selects the `rowData` column used as transcript IDs in downstream functions.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param id Name of `rowData` column containing unique transcript IDs.
-#' Set to `""` to use the transcript IDs (row names) of original count matrix.
+#' @param id Name of the `rowData` column containing unique transcript IDs. Use `""` to report row names.
 #'
-#' @returns Returns object with updated `active.transcript.id` stored in `metadata(object)`.
+#' @returns The object with `metadata(object)$active.transcript.id` updated.
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment
 #' @importFrom S4Vectors metadata metadata<-
 
-SetTranscripts <- function (
+SetTranscripts <- function(
     object,
     id
 ) {

@@ -31,3 +31,26 @@ test_that("NormalizeCounts returns object with normalized assay", {
   expect_true(all(assayNames(gbm) %in% c("counts", "tpmcounts")))
 
 })
+
+test_that("NormalizeCounts respects quiet for TPM overwrite messages", {
+
+  gbm <-
+    CreateSCE(
+      countData = gbm_countData,
+      colData = gbm_colData,
+      rowData = gbm_rowData,
+      gtf = gbm_gtf,
+      gtf.transcript.id = "transcript_id",
+      quiet = TRUE
+    )
+  gbm <- NormalizeCounts(gbm, method.use = "TPM", quiet = TRUE)
+
+  expect_message(
+    NormalizeCounts(gbm, method.use = "TPM", quiet = TRUE),
+    NA
+  )
+  expect_message(
+    NormalizeCounts(gbm, method.use = "TPM", quiet = FALSE),
+    "overwritten"
+  )
+})

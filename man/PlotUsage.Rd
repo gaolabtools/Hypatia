@@ -24,15 +24,15 @@ PlotUsage(
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{gene}{A gene ID.}
+\item{gene}{Active gene ID to plot.}
 
-\item{group.by}{Name of \code{colData} variable to group cells. If \code{NULL}, \code{metadata(object)$active.group.id} will be used.}
+\item{group.by}{One or more \code{colData} column names used to define cell groups. If \code{NULL}, \code{metadata(object)$active.group.id} is used.}
 
-\item{group.subset}{An optional vector specifying a subset of the elements in \code{group.by} to include.}
+\item{group.subset}{Optional vector of group labels to include.}
 
-\item{group.order}{An optional vector specifying the order of group elements.}
+\item{group.order}{Optional vector of group labels specifying plotting order.}
 
-\item{plot.type}{Which type of plot to generate. Options include \code{"stackedbar"}, \code{"bar"}, \code{"pie"}, and \code{"heatmap"}.}
+\item{plot.type}{Plot type: \code{"stackedbar"}, \code{"bar"}, \code{"pie"}, or \code{"heatmap"}.}
 
 \item{colors}{A vector of colors to use for the plot.}
 
@@ -40,11 +40,11 @@ PlotUsage(
 
 \item{nrow}{Number of facet rows.}
 
-\item{assay.use}{Which \code{assay} (counts) to use.}
+\item{assay.use}{Assay name to use.}
 
-\item{min.tx.cts}{Minimum transcript counts in at least 1 group required for a transcript to be included in proportion calculations.}
+\item{min.tx.cts}{Minimum transcript counts in at least one group before proportions are calculated.}
 
-\item{min.tx.prop}{Minimum transcript proportion required for a transcript to be plotted. Note: This parameter is intended for use with the \code{"heatmap"} plot type.}
+\item{min.tx.prop}{Minimum transcript proportion to plot separately; lower-proportion transcripts are collapsed into \code{"Other"}.}
 
 \item{text.size}{Text size.}
 
@@ -54,5 +54,5 @@ PlotUsage(
 A ggplot object.
 }
 \description{
-Generates plots showing the isoform usage of a gene.
+Plots transcript proportions for a gene across cell groups.
 }

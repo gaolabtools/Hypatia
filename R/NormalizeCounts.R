@@ -1,15 +1,15 @@
 #' Normalize raw isoform counts
 #'
-#' Normalizes raw isoform counts.
+#' Adds a normalized assay to a `SingleCellExperiment` object.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param method.use Normalization method. Options include `"LogNormalize"`, `"TPM"`, and `"FT"`. A new assay will be created (or overwritten) with name "logcounts", "tpmcounts", or "ftcounts", respectively.
-#' @param scale.factor Scale factor for log and Freeman-Tukey normalization methods.
-#' @param gtf A `GRanges` object containing transcript structural annotations used for TPM normalization.
-#' @param gtf.transcript.id Metadata column name in `gtf` containing transcript IDs.
+#' @param method.use Normalization method: `"LogNormalize"`, `"TPM"`, or `"FT"`. Creates or overwrites `"logcounts"`, `"tpmcounts"`, or `"ftcounts"`, respectively.
+#' @param scale.factor Scale factor for `"LogNormalize"` and `"FT"`.
+#' @param gtf Optional `GRanges` object with transcript ranges for TPM normalization.
+#' @param gtf.transcript.id Metadata column in `gtf` containing transcript IDs matching `rownames(object)`.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
-#' @returns Returns the object with a new assay containing normalized counts.
+#' @returns The input object with the selected normalized assay added.
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment
@@ -44,7 +44,7 @@ NormalizeCounts <- function(
     if (!quiet) message("\u2139 Warning: The assay 'logcounts' already exists and will be overwritten.")
   }
   if (method.use == "TPM" && "tpmcounts" %in% current_assays) {
-    if (!!quiet) message("\u2139 Warning: The assay 'tpmcounts' already exists and will be overwritten.")
+    if (!quiet) message("\u2139 Warning: The assay 'tpmcounts' already exists and will be overwritten.")
   }
 
   # Normalization

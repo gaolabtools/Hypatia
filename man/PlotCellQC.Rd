@@ -18,7 +18,7 @@ PlotCellQC(
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{group.by}{Name of \code{colData} variable to group cells. If \code{NULL}, \code{metadata(object)$active.group.id} will be used.}
+\item{group.by}{One or more \code{colData} column names used to define cell groups.}
 
 \item{colors}{A vector of colors to use for the plot.}
 
@@ -33,8 +33,8 @@ PlotCellQC(
 \item{combine}{Logical; if \code{TRUE}, combines plots using \code{patchwork}.}
 }
 \value{
-A patchwork/ggplot object.
+A patchwork object when \code{combine = TRUE}; otherwise a named list of ggplot objects.
 }
 \description{
-Generates plots of single-cell QC metrics \code{nTranscript}, \code{nGene}, and \code{nCount} for cell filtering. \code{nCount} corresponds to transcript counts per cell.
+Plots \code{nTranscript}, \code{nGene}, and \code{nCount} QC metrics by cell group.
 }

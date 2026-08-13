@@ -1,21 +1,19 @@
-#' Create a _SingleCellExperiment_ object
+#' Create a SingleCellExperiment object
 #'
-#' Creates a `SingleCellExperiment` object from isoform counts, cell-level metadata, and isoform-level metadata.
+#' Creates a `SingleCellExperiment` object from isoform counts, cell-level metadata, and transcript-level metadata.
 #'
-#' @param countData A numeric matrix containing raw single-cell isoform counts where row names are transcript IDs and column names are cell IDs.
+#' @param countData Numeric matrix, sparse matrix, or data frame of raw isoform counts. Row names are transcript IDs and column names are cell IDs.
 #' @param colData A data frame of cell-level metadata. Row names must match the column names of `countData`.
-#' @param rowData A data frame of isoform-level metadata. Row names must match the column names of `countData`.
-#'  Must include a column specifying gene IDs associated with each isoform as defined by the `active.gene.id` parameter.
-#' @param active.gene.id Name of the column in `rowData` containing associated gene IDs associated with each isoform.
-#' Defaults to `"gene_id"`.
-#' @param active.group.id Name of the column in `colData` that defines cell grouping used in downstream functions. If `NULL`, no default grouping is assigned to the object metadata.
-#' @param active.transcript.id Name of the column in `rowData` containing alternative transcript IDs (transcript names, ENST IDs, etc.) to use instead of row names of `countData`. Values in this column must be unique.
+#' @param rowData A data frame of transcript-level metadata. Row names must match the row names of `countData`. Must include the column named by `active.gene.id`.
+#' @param active.gene.id Name of the `rowData` column containing gene IDs for each transcript.
+#' @param active.group.id Optional `colData` column name to use as the default cell grouping in downstream functions.
+#' @param active.transcript.id Optional `rowData` column name containing unique transcript IDs to report instead of row names.
 #' @param gtf A `GRanges` object containing structural annotations for all transcripts in `countData`.
 #' @param gtf.transcript.id Name of metadata column in `gtf` that corresponds to the transcript IDs in `countData`.
 #' @param project Project name to be stored in the object's `colData` slot.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
-#' @returns A `SingleCellExperiment` object.
+#' @returns A `SingleCellExperiment` object with a `"counts"` assay, QC columns in `colData`/`rowData`, and Hypatia settings in `metadata(object)`.
 #'
 #' @export
 #' @import checkmate
@@ -40,25 +38,35 @@ CreateSCE <- function(
 ) {
 
   # Check inputs
-  if(!quiet) message("\nChecking inputs... ")
+  if (!quiet) message("\nChecking inputs... ")
 
   ## countData
   assertMultiClass(countData, c("matrix", "dgCMatrix", "data.frame"))
-  assertCharacter(rownames(countData))
-  assertCharacter(colnames(countData))
-  if(!quiet) message("\u2714 countData")
+  assertCharacter(rownames(countData), any.missing = FALSE, unique = TRUE)
+  assertCharacter(colnames(countData), any.missing = FALSE, unique = TRUE)
+  if (inherits(countData, "dgCMatrix")) {
+    assertNumeric(countData@x, lower = 0, any.missing = FALSE)
+  } else if (is.data.frame(countData)) {
+    if (!all(vapply(countData, is.numeric, logical(1)))) {
+      stop("countData must contain only numeric columns.")
+    }
+    assertNumeric(unlist(countData, use.names = FALSE), lower = 0, any.missing = FALSE)
+  } else {
+    assertNumeric(as.vector(countData), lower = 0, any.missing = FALSE)
+  }
+  if (!quiet) message("\u2714 countData")
 
   ## colData
   assertClass(colData, "data.frame")
   assertTRUE(identical(rownames(colData), colnames(countData)))
   if (!any(vapply(colData, function(x) length(unique(na.omit(x))) >= 2, logical(1)))) {
-    stop("colData must have at least one column with more than 2 unique values")
+    stop("colData must have at least one column with at least 2 unique non-missing values.")
   }
   if (!is.null(active.group.id)) {
     assertChoice(active.group.id, colnames(colData), null.ok = TRUE)
     assertFALSE(anyMissing(colData[[active.group.id]]))
   }
-  if(!quiet) message("\u2714 colData")
+  if (!quiet) message("\u2714 colData")
 
   ## rowData
   assertClass(rowData, "data.frame")
@@ -70,63 +78,60 @@ CreateSCE <- function(
     assertCharacter(rowData[[active.transcript.id]], any.missing = FALSE)
     assertFALSE(any(duplicated(rowData[[active.transcript.id]])))
   }
-  if(!quiet) message("\u2714 rowData")
+  if (!quiet) message("\u2714 rowData")
 
   ## gtf
   assertClass(gtf, "GRanges", null.ok = TRUE)
   if (!is.null(gtf)) {
+    assertString(gtf.transcript.id, null.ok = FALSE)
     assertTRUE(gtf.transcript.id %in% names(mcols(gtf)))
     assertTRUE(all(rownames(countData) %in% mcols(gtf)[[gtf.transcript.id]]))
-    if (quiet) message("\u2714 gtf")
+    if (!quiet) message("\u2714 gtf")
   }
 
   assertString(project)
   assertFlag(quiet)
 
-
   # Prepare countData
   if (!inherits(countData, "dgCMatrix")) {
-    if(!quiet) message("Converting countData to sparse matrix format...")
-    countData <- as.matrix(countData, nrow = nrow(countData), byrow = FALSE)
+    if (!quiet) message("Converting countData to sparse matrix format...")
+    countData <- as.matrix(countData)
     countData <- as(countData, "dgCMatrix")
   }
-
+  countData <- drop0(countData)
 
   # Prepare colData
   colData[["project"]] <- project
   colData[["nCount"]] <- colSums(countData)
-  colData[["nTranscript"]] <- diff(countData@p)
+  colData[["nTranscript"]] <- as.integer(colSums(countData > 0))
 
   ## nGene
   gene_ids <- rowData[[active.gene.id]]
-  n_genes_per_cell <- vapply(seq_len(ncol(countData)), function(j) {
-    idx <- (countData@p[j] + 1) : countData@p[j + 1]
-    if (length(idx) == 0) return(0L)
-    transcripts <- countData@i[idx] + 1
-    length(unique(gene_ids[transcripts]))
-  },
-  integer(1)
-  )
-  colData[["nGene"]] <- n_genes_per_cell
+  colData[["nGene"]] <- .NGenesPerCell(countData, gene_ids)
 
   ## column order
-  colData <- colData[, c("project", "nCount", "nTranscript", "nGene",
-                                               setdiff(names(colData), c("project", "nCount", "nTranscript", "nGene")))]
-
+  qc_cols <- c("project", "nCount", "nTranscript", "nGene")
+  colData <- colData[, c(qc_cols, setdiff(names(colData), qc_cols))]
 
   # Prepare rowData
   rowData$nCell <- rowSums(countData > 0)
   rowData <- rowData[, c("nCell", setdiff(names(rowData), "nCell"))]
 
-
   # Create the SCE object
-  if(!quiet) message("Creating a SingleCellExperiment object of ", ncol(countData), " cells and ", nrow(countData), " transcripts...")
+  if (!quiet) {
+    message(
+      "Creating a SingleCellExperiment object of ",
+      ncol(countData),
+      " cells and ",
+      nrow(countData),
+      " transcripts..."
+    )
+  }
   object <- SingleCellExperiment(
     assays = list(counts = countData),
     colData = colData,
     rowData = rowData
   )
-
 
   # Metadata slots
   metadata(object)$active.gene.id <- active.gene.id
@@ -141,10 +146,9 @@ CreateSCE <- function(
     metadata(object)$active.transcript.id <- active.transcript.id
   }
 
-
   # Prepare rowRanges
   if (!is.null(gtf)) {
-    if(!quiet) message("Adding rowRanges to object...")
+    if (!quiet) message("Adding rowRanges to object...")
 
     ## store provided rowRanges in metadata
     metadata(object)$GTF <- gtf
@@ -164,11 +168,9 @@ CreateSCE <- function(
 
     ## add back original rowData
     rowData(object) <- rowData
-
   }
 
-  if(!quiet) message("Done.")
+  if (!quiet) message("Done.")
 
   return(object)
 }
-

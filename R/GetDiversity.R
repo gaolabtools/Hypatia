@@ -1,24 +1,22 @@
-#' Get summarized isoform diversity data
+#' Get isoform diversity summaries
 #'
-#' Retrieves summarized isoform diversity data of one or more genes.
+#' Summarizes transcript proportions and isoform diversity for one or more genes.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param genes A vector of one or more gene IDs.
-#' @param group.by Name of `colData` variable to group cells. If `NULL`, `metadata(object)$active.group.id` will be used.
-#' @param group.subset An optional vector specifying a subset of the elements in `group.by` to include.
-#' @param entropy.use The diversity index to calculate.
-#' Options include `"Tsallis"`, `"Shannon"`, `"NormalizedShannon"`, `"Renyi"`, `"NormalizedRenyi"`, `"GiniSimpson"`, or `InverseSimpson`.
-#' @param assay.use Which `assay` (counts) to use.
-#' @param entropy.thresh The threshold of the diversity index used for monoform and polyform classification.
-#' Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shannon, 0.435 for Renyi, 0 for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.
-#' @param min.tx.cts Minimum transcript counts required for a transcript to be included in the contingency table.
-#' @param order Value specifying the order of entropy. Corresponds to `q` for Tsallis (default: 3) and `alpha` for Renyi (default: 2).
+#' @param genes Vector of active gene IDs to summarize.
+#' @param group.by One or more `colData` column names used to define cell groups. If `NULL`, `metadata(object)$active.group.id` is used.
+#' @param group.subset Optional vector of group labels to include.
+#' @param entropy.use Diversity index: `"Tsallis"`, `"Shannon"`, `"NormalizedShannon"`, `"Renyi"`, `"NormalizedRenyi"`, `"GiniSimpson"`, or `"InverseSimpson"`.
+#' @param assay.use Assay name to use.
+#' @param entropy.thresh Threshold used to classify genes as `"monoform"` or `"polyform"`. If `NULL`, a method-specific default is used.
+#' @param min.tx.cts Minimum transcript counts required before diversity is calculated.
+#' @param order Entropy order. Corresponds to `q` for Tsallis and `alpha` for Renyi.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns A data frame with the following columns:
 #' \describe{
 #'   \item{`group`}{The cell group being queried.}
-#'   \item{`gene`}{The gene being queried}
+#'   \item{`gene`}{The gene being queried.}
 #'   \item{`gene.pct`}{Percentage of cells in `group` with expression of the gene.}
 #'   \item{`n.transcripts`}{Number of associated transcripts for the gene.}
 #'   \item{`transcript`}{The associated transcript.}
@@ -32,7 +30,6 @@
 #' @import SummarizedExperiment
 #' @import dplyr
 #' @importFrom purrr reduce
-#' @importFrom tidyr unite
 #' @importFrom Matrix rowSums
 
 GetDiversity <- function (
@@ -67,47 +64,27 @@ GetDiversity <- function (
   assertTRUE(order != 1 || is.null(order))
   assertFlag(quiet)
 
-  # Transcript and gene IDs
-  assertString(metadata(object)$active.transcript.id)
-  assertString(metadata(object)$active.gene.id)
-  active.transcript.id <- metadata(object)$active.transcript.id
-  active.gene.id <- metadata(object)$active.gene.id
-  assertChoice(active.gene.id, colnames(rowData(object)))
-  assertFALSE(anyMissing(rowData(object)[[active.gene.id]]))
+  div.func <- .DiversityFunction(entropy.use, order)
+  entropy.thresh <- .DiversityThreshold(entropy.use, entropy.thresh)
 
-  if (metadata(object)$active.transcript.id != "") {
-    assertChoice(active.transcript.id, colnames(rowData(object)))
-    assertFALSE(any(duplicated(rowData(object)[[active.transcript.id]])))
-    assertFALSE(anyMissing(rowData(object)[[active.transcript.id]]))
-    rownames(object) <- rowData(object)[[active.transcript.id]]
-  }
+  # Transcript and gene IDs
+  active_ids <- .ActiveIds(object)
+  object <- active_ids$object
+  active.gene.id <- active_ids$active.gene.id
 
   # Gene filter
-  if (any(genes %in% unique(rowData(object)[[active.gene.id]]))) {
-    missing_genes <- setdiff(genes, unique(rowData(object)[[active.gene.id]]))
-    if (length(missing_genes) == length(genes)) {
-      stop("None of the genes were found in the object. (Check active.gene.id?)")
-    }
-    if (length(missing_genes) > 0) {
-      if (!quiet) message("\u2139 Warning: The following genes were not found in the object: '", paste0(missing_genes, collapse = "', '"), "'.")
-      genes <- genes[genes %in% unique(rowData(object)[[active.gene.id]])]
-    }
-    object <- object[rowData(object)[[active.gene.id]] %in% genes, , drop = FALSE]
-  } else {
-    stop("None of the genes were found in the object. (Check active.gene.id?)")
-  }
+  gene_filter <- .FilterGenes(object, genes, active.gene.id, quiet = quiet)
+  object <- gene_filter$object
+  genes <- gene_filter$genes
 
   # Group structure
-  colData(object)$group_var <- colData(object) %>%
-    as.data.frame() %>%
-    unite("group_var", all_of(group.by), sep = "_", remove = FALSE) %>%
-    pull(group_var)
+  colData(object)$group_var <- .GroupVar(object, group.by)
   unique_groups <- unique(colData(object)$group_var)
   ## check groups
   if (!is.null(group.subset)) {
     assertSubset(group.subset, unique_groups)
     ## subset object for groups
-    object <- object[, object$group_var %in% group.subset]
+    object <- object[, object$group_var %in% group.subset, drop = FALSE]
     unique_groups <- unique(colData(object)$group_var)
   }
 
@@ -117,7 +94,7 @@ GetDiversity <- function (
   for (group in unique_groups) {
 
     ## subset group
-    object_grp <- object[, object$group_var == group]
+    object_grp <- object[, object$group_var == group, drop = FALSE]
 
     ## gene pct
     gene_groups <- rowData(object_grp)[[active.gene.id]]
@@ -137,51 +114,6 @@ GetDiversity <- function (
     agg_cts_df <- agg_cts_df %>%
       filter(cts >= min.tx.cts) %>%
       mutate("group_var" = group)
-
-    ## calculate diversity
-    div.func <- function(x) {
-
-      if (entropy.use == "Shannon") {
-        x <- head(sort(x, decreasing = TRUE), 2)
-        -sum(x[x > 0] * log(x[x > 0]))
-      }
-      else if (entropy.use == "NormalizedShannon") {
-        n_x <- sum(x > 0)
-        (-sum(x[x > 0] * log(x[x > 0]))) / (log(n_x))
-      }
-      else if (entropy.use == "Renyi") {
-        if (is.null(order)) {order <- 2}
-        x <- head(sort(x, decreasing = TRUE), 2)
-        (1 / (1 - order)) * log( sum( (x[x > 0])^order ) )
-      }
-      else if (entropy.use == "NormalizedRenyi") {
-        if (is.null(order)) {order <- 2}
-        n_x <- sum(x > 0)
-        (1 / (1 - order)) * log( sum( (x[x > 0])^order ) ) / (log(n_x))
-      }
-      else if (entropy.use == "GiniSimpson") {
-        # x <- head(sort(x, decreasing = TRUE), 2)
-        1 - sum( (x[x > 0])^2 )
-      }
-      else if (entropy.use == "Tsallis") {
-        if (is.null(order)) {order <- 3}
-        (1 - sum(x[x > 0]^order)) / (order - 1)
-      }
-      else if (entropy.use == "InverseSimpson") {
-        1 / sum( (x[x > 0])^2 )
-      }
-    }
-
-    ## diversity threshold
-    if (is.null(entropy.thresh)) {
-      if (entropy.use == "Shannon") {entropy.thresh <- 0.500}
-      else if (entropy.use == "NormalizedShannon") {entropy.thresh <- 0}
-      else if (entropy.use == "Renyi") {entropy.thresh <- 0.435}
-      else if (entropy.use == "NormalizedRenyi") {entropy.thresh <- 0}
-      else if (entropy.use == "GiniSimpson") {entropy.thresh <- 0.348}
-      else if (entropy.use == "Tsallis") {entropy.thresh <- 0.243}
-      else if (entropy.use == "InverseSimpson") {entropy.thresh <- 1.533}
-    }
 
     div_res <- agg_cts_df %>%
       group_by(gene_query) %>%
@@ -214,6 +146,3 @@ GetDiversity <- function (
   )
 
 }
-
-
-

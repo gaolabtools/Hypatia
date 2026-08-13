@@ -2,20 +2,20 @@
 % Please edit documentation in R/SetGenes.R
 \name{SetGenes}
 \alias{SetGenes}
-\title{Set the active gene ID.}
+\title{Set active gene IDs}
 \usage{
 SetGenes(object, id, quiet = FALSE)
 }
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{id}{Name of \code{rowData} column containing gene IDs associated with each transcript.}
+\item{id}{Name of the \code{rowData} column containing gene IDs.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
 }
 \value{
-Returns object with updated \code{active.gene.id} stored in \code{metadata(object)}.
+The object with \code{metadata(object)$active.gene.id} updated.
 }
 \description{
-Updates the active gene ID (gene symbols, ENSG IDs, etc.) for downstream functions.
+Selects the \code{rowData} column used as gene IDs in downstream functions.
 }

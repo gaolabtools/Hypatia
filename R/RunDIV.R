@@ -1,26 +1,23 @@
 #' Run isoform diversity analysis
 #'
-#' Performs isoform diversity analysis.
-#' For each comparison, genes are first filtered according to coverage.
-#' Gene-level diversity is then calculated by bootstrapping cells in each group. For each bootstrap iteration, transcript counts are aggregated to compute diversity metrics.
-#' These diversities are then compared across cell groups using the Wilcox test.
+#' Tests genes for differential isoform diversity between cell groups.
+#'
 #' @param object A `SingleCellExperiment` object.
-#' @param group.by Name of `colData` variable to group cells for comparisons. If `NULL`, `metadata(object)$active.group.id` will be used.
-#' @param group.1 First group in the comparison.
-#' @param group.2 Second group in the comparison.
-#' @param entropy.use The diversity index to calculate.
-#' Options include `"Tsallis"`, `"Shannon"`, `"NormalizedShannon"`, `"Renyi"`, `"NormalizedRenyi"`, `"GiniSimpson"`, or `InverseSimpson`. The default is `"Tsallis"`.
-#' @param assay.use Which `assay` (counts) to use.
-#' @param entropy.thresh Diversity index threshold to use for monoform and polyform classifications.
-#' Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shannon, 0.435 for Renyi, 0 for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.
-#' @param min.gene.pct Minimum percentage of cells in which a gene must be expressed in both groups for it to be tested.
-#' @param min.gene.cts Minimum total transcript counts in which a gene must be have in both groups for it be tested.
-#' @param min.tx.cts Minimum transcript counts required for a transcript to be included in the contingency table.
+#' @param group.by One or more `colData` column names used to define cell groups. If `NULL`, `metadata(object)$active.group.id` is used.
+#' @param group.1 Group label(s) for the first side of the comparison. If `NULL`, each group is compared against all others.
+#' @param group.2 Optional group label(s) for the second side of the comparison. If `NULL`, `group.1` is compared against all other cells.
+#' @param entropy.use Diversity index: `"Tsallis"`, `"Shannon"`, `"NormalizedShannon"`, `"Renyi"`, `"NormalizedRenyi"`, `"GiniSimpson"`, or `"InverseSimpson"`.
+#' @param assay.use Assay name to use.
+#' @param entropy.thresh Threshold used to classify genes as `"monoform"` or `"polyform"`. If `NULL`, a method-specific default is used.
+#' @param min.gene.pct Minimum fraction of cells in each group where the gene must be detected.
+#' @param min.gene.cts Minimum total gene counts required in each group.
+#' @param min.tx.cts Minimum transcript counts required before diversity is calculated.
 #' @param boot.iter Number of bootstrap iterations to perform.
-#' @param boot.size Proportion of cells per group from 0.01 to 1 to use for bootstrap subsampling.
+#' @param boot.size Proportion of cells sampled per bootstrap iteration.
 #' @param include.single Logical; if `FALSE`, genes with only one associated transcript after filtering will be excluded from the analysis.
-#' @param order Value specifying the order of entropy. Corresponds to `q` for Tsallis and `alpha` for Renyi.
-#' @param genes A vector containing one or more gene IDs to test.
+#' @param order Entropy order. Corresponds to `q` for Tsallis and `alpha` for Renyi.
+#' @param genes Optional vector of active gene IDs to test. Genes are still subject to filtering.
+#' @param p.adj P-value adjustment method. Must be one of `stats::p.adjust.methods`.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns A list containing two data frames:
@@ -46,10 +43,10 @@
 #'       \item{`gene`}{The gene being tested.}
 #'       \item{`avgDiv.1`}{Average of bootstrapped isoform diversity of the gene for cells in `group.1`.}
 #'       \item{`avgDiv.2`}{Average of bootstrapped isoform diversity of the gene for cells in `group.2`.}
-#'       \item{`delta.div`}{The difference in averaged isoform diversities between groups (`group.1` - `group.2`).}
+#'       \item{`div.diff`}{The difference in averaged isoform diversities between groups (`group.1` - `group.2`).}
 #'       \item{`log2FC`}{The log2 fold-change of averaged isoform diversities between groups (`group.1` - `group.2`).}
-#'       \item{`pval`}{P-value from the Wilcox test comparing bootstrapped isoform diversities across groups.}
-#'       \item{`padj`}{Adjusted p-value (Bonferroni correction).}
+#'       \item{`pval`}{P-value from the Wilcoxon rank-sum test.}
+#'       \item{`padj`}{Adjusted p-value.}
 #'       \item{`div.class.1`}{Isoform diversity classification of the gene for `group.1`.}
 #'       \item{`div.class.2`}{Isoform diversity classification of the gene for `group.2`.}
 #'     }
@@ -60,9 +57,8 @@
 #' @import SingleCellExperiment
 #' @import SummarizedExperiment
 #' @import dplyr
-#' @importFrom tidyr unite
-#' @importFrom purrr reduce map transpose
-#' @importFrom stats wilcox.test
+#' @importFrom purrr reduce
+#' @importFrom stats p.adjust wilcox.test
 
 RunDIV <- function (
     object,
@@ -80,6 +76,7 @@ RunDIV <- function (
     include.single = TRUE,
     order = NULL,
     genes = NULL,
+    p.adj = "bonferroni",
     quiet = FALSE
 ) {
 
@@ -92,6 +89,8 @@ RunDIV <- function (
   } else {
     assertSubset(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
   }
+  assertCharacter(group.1, null.ok = TRUE)
+  assertCharacter(group.2, null.ok = TRUE)
   assertChoice(entropy.use, c("Tsallis", "Shannon", "NormalizedShannon", "Renyi", "NormalizedRenyi", "GiniSimpson", "InverseSimpson"))
   assertTRUE(assay.use %in% assayNames(object))
   assertNumber(min.gene.pct, lower = 0, upper = 1, finite = TRUE)
@@ -103,72 +102,22 @@ RunDIV <- function (
   assertNumber(order, lower = 0, finite = TRUE, null.ok = TRUE)
   assertTRUE(order != 1 || is.null(order))
   assertCharacter(genes, null.ok = TRUE, any.missing = FALSE, unique = TRUE)
+  p.adj <- .PAdjustMethod(p.adj)
   assertFlag(quiet)
 
   # Transcript and gene IDs
-  assertString(metadata(object)$active.transcript.id)
-  assertString(metadata(object)$active.gene.id)
-  active.transcript.id <- metadata(object)$active.transcript.id
-  active.gene.id <- metadata(object)$active.gene.id
-  assertChoice(active.gene.id, colnames(rowData(object)))
-  assertFALSE(anyMissing(rowData(object)[[active.gene.id]]))
-
-  if (metadata(object)$active.transcript.id != "") {
-    assertChoice(active.transcript.id, colnames(rowData(object)))
-    assertFALSE(any(duplicated(rowData(object)[[active.transcript.id]])))
-    assertFALSE(anyMissing(rowData(object)[[active.transcript.id]]))
-    rownames(object) <- rowData(object)[[active.transcript.id]]
-  }
+  active_ids <- .ActiveIds(object)
+  object <- active_ids$object
+  active.gene.id <- active_ids$active.gene.id
 
   # Diversity functions
-  div.func <- function(x) {
-
-    if (entropy.use == "Shannon") {
-      x <- head(sort(x, decreasing = TRUE), 2)
-      -sum(x[x > 0] * log(x[x > 0]))
-    }
-    else if (entropy.use == "NormalizedShannon") {
-      n_x <- sum(x > 0)
-      (-sum(x[x > 0] * log(x[x > 0]))) / (log(n_x))
-    }
-    else if (entropy.use == "Renyi") {
-      if (is.null(order)) {order <- 2}
-      x <- head(sort(x, decreasing = TRUE), 2)
-      (1 / (1 - order)) * log( sum( (x[x > 0])^order ) )
-    }
-    else if (entropy.use == "NormalizedRenyi") {
-      if (is.null(order)) {order <- 2}
-      n_x <- sum(x > 0)
-      (1 / (1 - order)) * log( sum( (x[x > 0])^order ) ) / (log(n_x))
-    }
-    else if (entropy.use == "GiniSimpson") {
-      1 - sum( (x[x > 0])^2 )
-    }
-    else if (entropy.use == "Tsallis") {
-      if (is.null(order)) {order <- 3}
-      (1 - sum(x[x > 0]^order)) / (order - 1)
-    }
-    else if (entropy.use == "InverseSimpson") {
-      1 / sum( (x[x > 0])^2 )
-    }
-  }
+  div.func <- .DiversityFunction(entropy.use, order)
 
   # Diversity thresholds
-  if (is.null(entropy.thresh)) {
-    if (entropy.use == "Shannon") {entropy.thresh <- 0.500}
-    else if (entropy.use == "NormalizedShannon") {entropy.thresh <- 0}
-    else if (entropy.use == "Renyi") {entropy.thresh <- 0.435}
-    else if (entropy.use == "NormalizedRenyi") {entropy.thresh <- 0}
-    else if (entropy.use == "GiniSimpson") {entropy.thresh <- 0.348}
-    else if (entropy.use == "Tsallis") {entropy.thresh <- 0.243}
-    else if (entropy.use == "InverseSimpson") {entropy.thresh <- 1.533}
-  }
+  entropy.thresh <- .DiversityThreshold(entropy.use, entropy.thresh)
 
   # Group structure
-  colData(object)$group_var <- colData(object) %>%
-    as.data.frame() %>%
-    unite("group_var", all_of(group.by), sep = "_", remove = FALSE) %>%
-    pull(group_var)
+  colData(object)$group_var <- .GroupVar(object, group.by)
   unique_groups <- unique(colData(object)$group_var)
 
   if (length(unique_groups) < 2) {
@@ -181,106 +130,22 @@ RunDIV <- function (
 
   # Gene filter
   if (!is.null(genes)) {
-    if (any(genes %in% unique(rowData(object)[[active.gene.id]]))) {
-      missing_genes <- setdiff(genes, unique(rowData(object)[[active.gene.id]]))
-      if (length(missing_genes) == length(genes)) {
-        stop("None of the genes were found in the object. (Check active.gene.id?)")
-      }
-      if (length(missing_genes) > 0) {
-        if (!quiet) message("\u2139 Warning: The following genes were not found in the object: '", paste0(missing_genes, collapse = "', '"), "'.")
-        genes <- genes[genes %in% unique(rowData(object)[[active.gene.id]])]
-      }
-      object <- object[rowData(object)[[active.gene.id]] %in% genes, , drop = FALSE]
-    } else {
-      stop("None of the genes were found in the object. (Check active.gene.id?)")
-    }
+    gene_filter <- .FilterGenes(object, genes, active.gene.id, quiet = quiet)
+    object <- gene_filter$object
+    genes <- gene_filter$genes
   }
 
   # Diversity
-  object_grp_list <- list()
-
-  ## every group vs all
-  if (is.null(group.1) && is.null(group.2)) {
-
-    # loop through each group to make object list
-    for (grp in unique_groups) {
-
-      # assign group.2
-      group.1 <- grp
-      group.2 <- setdiff(unique_groups, group.1)
-
-      # create an object for grp1 and grp2
-      object_grp1 <- object[, object$group_var == grp]
-      object_grp2 <- object[, object$group_var != grp]
-
-      # update cell groups
-      group.1.updated <- paste0(group.1, collapse = ",")
-      group.2.updated <- paste0(group.2, collapse = ",")
-
-      # add to list
-      object_grp_list[[grp]] <- list("grp1.object" = object_grp1,
-                                     "grp2.object" = object_grp2,
-                                     "grp1.names" = group.1.updated,
-                                     "grp2.names" = group.2.updated)
-
-      # if only two groups, only run one
-      if (length(unique_groups) == 2) {
-        break
-      }
-
-    }
-
-    if (!quiet) message("Running DIV analysis for all groups in '", paste0(group.by, collapse = "_"), "'...")
-
-  }
-
-  ## 1 group vs all
-  else if (!is.null(group.1) && is.null(group.2)) {
-
-    # assign group.2
-    group.2 <- setdiff(unique_groups, group.1)
-
-    # create an object for grp1 and grp2
-    object_grp1 <- object[, object$group_var %in% group.1]
-    object_grp2 <- object[, object$group_var %in% group.2]
-
-    # update cell groups
-    group.1.updated <- paste0(group.1, collapse = ",")
-    group.2.updated <- paste0(group.2, collapse = ",")
-
-    # add to list
-    object_grp_list[["single_test"]] <- list("grp1.object" = object_grp1,
-                                             "grp2.object" = object_grp2,
-                                             "grp1.names" = group.1.updated,
-                                             "grp2.names" = group.2.updated)
-
-    if (!quiet) message("Running DIV analysis for ", group.1.updated, " vs all other cells...")
-  }
-
-  ## 2 groups comparison
-  else if (!is.null(group.1) && !is.null(group.2)) {
-
-    # create an object for grp1 and grp2
-    object_grp1 <- object[, object$group_var %in% group.1]
-    object_grp2 <- object[, object$group_var %in% group.2]
-
-    # update cell groups
-    group.1.updated <- paste0(group.1, collapse = ",")
-    group.2.updated <- paste0(group.2, collapse = ",")
-
-    # add to list
-    object_grp_list[["single_test"]] <- list("grp1.object" = object_grp1,
-                                             "grp2.object" = object_grp2,
-                                             "grp1.names" = group.1.updated,
-                                             "grp2.names" = group.2.updated)
-
-    if (!quiet) message("Running DIV analysis for ", group.1.updated, " vs ", group.2.updated, "...")
-
-  }
-
-  ## case: group 1 unspecified but group 2 is specified
-  else if (is.null(group.1) && !is.null(group.2)) {
-    stop("`group.1` must be specified prior to `group.2`")
+  object_grp_list <- .BuildGroupComparisons(object, group.1, group.2, unique_groups)
+  comparison_mode <- attr(object_grp_list, "mode")
+  if (!quiet && comparison_mode == "all") {
+    message("Running DIV analysis for all groups in '", paste0(group.by, collapse = "_"), "'...")
+  } else if (!quiet && comparison_mode == "one_vs_all") {
+    comparison <- object_grp_list[["single_test"]]
+    message("Running DIV analysis for ", comparison$grp1.names, " vs all other cells...")
+  } else if (!quiet && comparison_mode == "pair") {
+    comparison <- object_grp_list[["single_test"]]
+    message("Running DIV analysis for ", comparison$grp1.names, " vs ", comparison$grp2.names, "...")
   }
 
   # Loop through object grp list
@@ -328,8 +193,8 @@ RunDIV <- function (
     gene_dr_df$gene.id <- rownames(gene_dr_df)
 
     ## filter genes from grp objects
-    filt_object_grp1 <- object_grp1[rowData(object_grp1)[[active.gene.id]] %in% rownames(gene_dr_df), drop = FALSE]
-    filt_object_grp2 <- object_grp2[rowData(object_grp2)[[active.gene.id]] %in% rownames(gene_dr_df), drop = FALSE]
+    filt_object_grp1 <- object_grp1[rowData(object_grp1)[[active.gene.id]] %in% rownames(gene_dr_df), , drop = FALSE]
+    filt_object_grp2 <- object_grp2[rowData(object_grp2)[[active.gene.id]] %in% rownames(gene_dr_df), , drop = FALSE]
 
     ## aggregate transcript counts
     agg_cts_df <- data.frame("gene.id.1" = rowData(filt_object_grp1)[[active.gene.id]],
@@ -359,8 +224,8 @@ RunDIV <- function (
       distinct(gene.id, n.transcripts)
 
     ## final filtering
-    filt_object_grp1 <- object_grp1[rowData(object_grp1)[[active.gene.id]] %in% keep_genes, drop = FALSE]
-    filt_object_grp2 <- object_grp2[rowData(object_grp2)[[active.gene.id]] %in% keep_genes, drop = FALSE]
+    filt_object_grp1 <- object_grp1[rowData(object_grp1)[[active.gene.id]] %in% keep_genes, , drop = FALSE]
+    filt_object_grp2 <- object_grp2[rowData(object_grp2)[[active.gene.id]] %in% keep_genes, , drop = FALSE]
 
     ## number of tests to conduct
     n_tests <- length(keep_genes)
@@ -382,8 +247,8 @@ RunDIV <- function (
       grp2_col_idx <- sample(seq_len(ncol(filt_object_grp2)), size = grp2_boot_ncells, replace = TRUE)
 
       ## subsample objects
-      boot_object_grp1 <- filt_object_grp1[, grp1_col_idx]
-      boot_object_grp2 <- filt_object_grp2[, grp2_col_idx]
+      boot_object_grp1 <- filt_object_grp1[, grp1_col_idx, drop = FALSE]
+      boot_object_grp2 <- filt_object_grp2[, grp2_col_idx, drop = FALSE]
 
       ## aggregate transcript counts
       boot_agg_cts_df <- data.frame("gene.id.1" = rowData(boot_object_grp1)[[active.gene.id]],
@@ -412,48 +277,51 @@ RunDIV <- function (
         ungroup() %>%
         distinct(gene.id, grp.1, grp.2, div.1, div.2)
 
-    })
+    },
+    simplify = FALSE
+    )
 
     ## comparison results
-    mat.div.1 <- do.call(cbind, boot_result["div.1", ])
-    mat.div.2 <- do.call(cbind, boot_result["div.2", ])
+    mat.div.1 <- do.call(cbind, lapply(boot_result, `[[`, "div.1"))
+    mat.div.2 <- do.call(cbind, lapply(boot_result, `[[`, "div.2"))
 
     comp_result <- data.frame(
-      "gene.id" = boot_result["gene.id", ][[1]],
-      "grp.1" = boot_result["grp.1", ][[1]],
-      "grp.2" = boot_result["grp.2", ][[1]],
+      "gene.id" = boot_result[[1]]$gene.id,
+      "grp.1" = boot_result[[1]]$grp.1,
+      "grp.2" = boot_result[[1]]$grp.2,
       "avgDiv.1" = rowMeans(mat.div.1, na.rm = TRUE),
       "avgDiv.2" = rowMeans(mat.div.2, na.rm = TRUE))
 
     comp_result <- comp_result %>%
       mutate(
-      "delta.div" = avgDiv.1 - avgDiv.2,
-      "log2FC" = log2(avgDiv.1 / avgDiv.2))
+        "div.diff" = avgDiv.1 - avgDiv.2,
+        "log2FC" = log2(avgDiv.1 / avgDiv.2)
+      )
 
-    if (sum(is.na(comp_result$delta.div)) > 0) {
-      if (!quiet) message("  \u2139 Warning: ", sum(is.na(comp_result$delta.div)), " genes have 0 counts after bootstrap sampling.\n    Try increasing filtering parameters or iterations.")
+    if (sum(is.na(comp_result$div.diff)) > 0) {
+      if (!quiet) message("  \u2139 Warning: ", sum(is.na(comp_result$div.diff)), " genes have 0 counts after bootstrap sampling.\n    Try increasing filtering parameters or iterations.")
     }
 
     ## Wilcox test
     pvals <- sapply(1:nrow(mat.div.1), function(i) {
       tryCatch(
         {wilcox.test(mat.div.1[i, ], mat.div.2[i, ], paired = FALSE, exact = FALSE)$p.value},
-        error = function(e) {NA})
-
-      })
+        error = function(e) {NA}
+      )
+    })
     comp_result <- comp_result %>%
       mutate("pval" = pvals)
 
     ## remove failed bootstrap genes
     comp_result <- comp_result %>%
-      filter(!is.na(delta.div))
+      filter(!is.na(div.diff))
 
     ## p value adjustment
     comp_result <- comp_result %>%
-      mutate("padj" = p.adjust(pval, method = "bonferroni"),
+      mutate("padj" = p.adjust(pval, method = p.adj),
              "class.1" = ifelse(avgDiv.1 <= entropy.thresh, "monoform", "polyform"),
              "class.2" = ifelse(avgDiv.2 <= entropy.thresh, "monoform", "polyform")
-             )
+      )
 
     ## stats and data output
     div_stats <- comp_result %>%
@@ -462,20 +330,13 @@ RunDIV <- function (
              "gene" = gene.id,
              "div.class.1" = class.1,
              "div.class.2" = class.2) %>%
-      select(group.1, group.2, gene, avgDiv.1, avgDiv.2, delta.div, log2FC, everything())
+      select(group.1, group.2, gene, avgDiv.1, avgDiv.2, div.diff, log2FC, everything())
 
-    tmp <- boot_result
-    boot_result <- boot_result %>%
-      t() %>%
-      as.data.frame() %>%
-      mutate(grp.1 = unique(unlist(grp.1)),
-             grp.2 = unique(unlist(grp.2)))
-
-    genes <- boot_result$gene.id[[1]]
-    grp1 <- rep(boot_result$grp.1[1], length(genes))
-    grp2 <- rep(boot_result$grp.2[1], length(genes))
-    div.grp1 <- map(transpose(boot_result$div.1), unlist)
-    div.grp2 <- map(transpose(boot_result$div.2), unlist)
+    genes <- boot_result[[1]]$gene.id
+    grp1 <- boot_result[[1]]$grp.1
+    grp2 <- boot_result[[1]]$grp.2
+    div.grp1 <- lapply(seq_along(genes), function(i) mat.div.1[i, ])
+    div.grp2 <- lapply(seq_along(genes), function(i) mat.div.2[i, ])
 
     div_data <- data.frame(
       "gene.id" = genes,
@@ -524,8 +385,8 @@ RunDIV <- function (
                                     "gene" = character(),
                                     "avgDiv.1" = numeric(),
                                     "avgDiv.2" = numeric(),
+                                    "div.diff" = numeric(),
                                     "log2FC" = numeric(),
-                                    "delta.div" = character(),
                                     "pval" = numeric(),
                                     "padj" = numeric(),
                                     "div.class.1" = character(),

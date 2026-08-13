@@ -1,2 +1,4 @@
 ^Hypatia\.Rproj$
 ^\.Rproj\.user$
+^vignettes/Hypatia\.html$
+^vignettes/.*_files$

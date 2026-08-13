@@ -1,17 +1,18 @@
-#' Set the active cell group
+#' Set active cell groups
 #'
-#' Sets or updates the active cell group for downstream functions.
+#' Selects the `colData` column used as the default cell grouping in downstream functions.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param id Name of `colData` column containing the desired cell groups (cell types, cell states, sample ID, etc.).
+#' @param id Name of the `colData` column containing cell groups.
+#' Character and factor columns are supported.
 #'
-#' @returns Returns object with updated `active.group.id` stored in `metadata(object)`.
+#' @returns The object with `metadata(object)$active.group.id` updated.
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment
 #' @importFrom S4Vectors metadata metadata<-
 
-SetGroups <- function (
+SetGroups <- function(
     object,
     id
 ) {
@@ -19,12 +20,18 @@ SetGroups <- function (
   assertClass(object, "SingleCellExperiment")
   assertString(id)
   assertChoice(id, colnames(colData(object)))
-  assertCharacter(colData(object)[[id]], any.missing = FALSE)
 
-  if (length(unique(colData(object)[[id]])) < 2) {
+  groups <- colData(object)[[id]]
+  if (!is.character(groups) && !is.factor(groups)) {
+    stop("The grouping variable must be a character or factor column.")
+  }
+  assertFALSE(anyMissing(groups))
+
+  if (length(unique(groups)) < 2) {
     stop("The grouping variable must contain at least 2 unique variables.")
   }
 
   metadata(object)$active.group.id <- id
+
   return(object)
 }

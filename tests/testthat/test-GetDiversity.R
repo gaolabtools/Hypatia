@@ -22,3 +22,27 @@ test_that("GetDiversity works", {
   expect_class(res, "data.frame")
 
 })
+
+test_that("GetDiversity reports active transcript IDs", {
+
+  gbm <-
+    CreateSCE(
+      countData = gbm_countData,
+      colData = gbm_colData,
+      rowData = gbm_rowData,
+      quiet = TRUE,
+      active.group.id = "cell_type"
+    )
+
+  gbm <- SetTranscripts(gbm, id = "transcript_name")
+
+  res <- GetDiversity(
+    gbm,
+    genes = "ENSG00000135945",
+    group.subset = "Tumor",
+    min.tx.cts = 0,
+    quiet = TRUE
+  )
+
+  expect_true(all(res$transcript %in% rowData(gbm)$transcript_name))
+})

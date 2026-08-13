@@ -1,27 +1,30 @@
 #' Run differential isoform expression analysis
 #'
-#' Runs differential isoform expression analysis, which compares the mean isoform expression across two groups of cells using Wilcoxon-based testing.
+#' Tests transcripts for differential isoform expression between cell groups.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param group.by Name of `colData` variable to group cells for comparisons. If `NULL`, `metadata(object)$active.group.id` will be used.
-#' @param group.1 First group in the comparison.
-#' @param group.2 Second group in the comparison.
-#' @param assay.use Which `assay` (counts) to use. The default and recommended option is `"logcounts"`.
-#' @param min.pct Minimum percentage of cells in which a transcript must be expressed in both groups for it to be adjusted for multiple testing and reported in results.
+#' @param group.by One or more `colData` column names used to define cell groups. If `NULL`, `metadata(object)$active.group.id` is used.
+#' @param group.1 Group label(s) for the first side of the comparison. If `NULL`, each group is compared against all others.
+#' @param group.2 Optional group label(s) for the second side of the comparison. If `NULL`, `group.1` is compared against all other cells.
+#' @param assay.use Assay name to use. The default and recommended assay is `"logcounts"`.
+#' @param min.pct Minimum fraction of cells in each group where the transcript must be detected.
 #' @param only.pos Logical; if `TRUE`, only transcripts with positive fold change will be reported.
-#' @param transcripts A vector of transcript IDs to test.
+#' @param transcripts Optional vector of active transcript IDs to test.
+#' @param p.adj P-value adjustment method. Must be one of `stats::p.adjust.methods`.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns A data frame with the following columns:
 #' \describe{
-#'   \item{`group.1` & `group.1`}{The two cell groups being compared.}
+#'   \item{`group.1` & `group.2`}{The two cell groups being compared.}
 #'   \item{`gene`}{The gene associated with the transcript being tested.}
 #'   \item{`transcript`}{The transcript being tested.}
-#'   \item{`pct.1`}{Average expression of the transcript across all cells in `group.1`.}
-#'   \item{`pct.2`}{Average expression of the transcript across all cells in `group.2`.}
+#'   \item{`pct.1`}{Percentage of cells in `group.1` with expression of the transcript.}
+#'   \item{`pct.2`}{Percentage of cells in `group.2` with expression of the transcript.}
+#'   \item{`avgExpr.1`}{Average expression of the transcript in `group.1`.}
+#'   \item{`avgExpr.2`}{Average expression of the transcript in `group.2`.}
 #'   \item{`log2FC`}{The log2 fold change in transcript expression between the two groups (`group.1` - `group.2`).}
-#'   \item{`pval`}{P-value from the the Wilcoxon rank-sum test.}
-#'   \item{`padj`}{Adjusted p-value, calculated separately for each group comparison (default: Bonferroni).}
+#'   \item{`pval`}{P-value from the Wilcoxon rank-sum test.}
+#'   \item{`padj`}{Adjusted p-value, calculated separately for each group comparison.}
 #' }
 #' @export
 #' @import checkmate
@@ -29,7 +32,6 @@
 #' @import SummarizedExperiment
 #' @import dplyr
 #' @importFrom tibble rownames_to_column column_to_rownames
-#' @importFrom tidyr unite
 #' @importFrom purrr reduce
 #' @importFrom matrixTests row_wilcoxon_twosample
 #' @importFrom stats p.adjust
@@ -43,6 +45,7 @@ RunDEI <- function(
   min.pct = 0.01,
   only.pos = FALSE,
   transcripts = NULL,
+  p.adj = "bonferroni",
   quiet = FALSE
   ) {
 
@@ -63,36 +66,21 @@ RunDEI <- function(
   assertNumber(min.pct, lower = 0, upper = 1, finite = TRUE)
   assertFlag(only.pos)
   assertCharacter(transcripts, null.ok = TRUE, any.missing = FALSE, unique = TRUE)
+  p.adj <- .PAdjustMethod(p.adj)
   assertFlag(quiet)
 
   # Transcript and gene IDs
-  assertString(metadata(object)$active.transcript.id)
-  assertString(metadata(object)$active.gene.id)
-  active.transcript.id <- metadata(object)$active.transcript.id
-  active.gene.id <- metadata(object)$active.gene.id
-  assertChoice(active.gene.id, colnames(rowData(object)))
-  assertFALSE(anyMissing(rowData(object)[[active.gene.id]]))
-
-  if (metadata(object)$active.transcript.id != "") {
-    assertChoice(active.transcript.id, colnames(rowData(object)))
-    assertFALSE(any(duplicated(rowData(object)[[active.transcript.id]])))
-    assertFALSE(anyMissing(rowData(object)[[active.transcript.id]]))
-    rownames(object) <- rowData(object)[[active.transcript.id]]
-  }
+  active_ids <- .ActiveIds(object)
+  object <- active_ids$object
+  active.gene.id <- active_ids$active.gene.id
 
   gene.id.df <- rowData(object)[active.gene.id] %>%
     as.data.frame() %>%
     rownames_to_column(var = "transcript") %>%
     rename("gene" = all_of(active.gene.id))
 
-  # Expression mat
-  expr_mat <- assay(object, assay.use)
-
   # Group structure
-  colData(object)$group_var <- colData(object) %>%
-    as.data.frame() %>%
-    unite("group_var", all_of(group.by), sep = "_", remove = FALSE) %>%
-    pull(group_var)
+  colData(object)$group_var <- .GroupVar(object, group.by)
   cell_groups <- colData(object)$group_var
   unique_groups <- unique(cell_groups)
 
@@ -108,120 +96,30 @@ RunDEI <- function(
   # Transcript filter
   if (!is.null(transcripts)) {
 
-    # transcripts supplied are detected
-    if (any(transcripts %in% rownames(object))) {
-      missing_transcripts <- setdiff(transcripts, rownames(object))
-      # if missing transcripts are detected
-      if (length(missing_transcripts) > 0) {
-        if (!quiet) message("\u2139 Warning: The following transcripts were not found in the object: '", paste0(missing_transcripts, collapse = "', '"), "'.")
-        transcripts <- transcripts[transcripts %in% rownames(object)]
-        if (length(transcripts) < 2) {
-          stop("Please provide at least 2 valid transcripts to test.")
-        } else {
-          expr_mat <- expr_mat[transcripts, , drop = FALSE]
-        }
-      # all transcripts provided are in detected
-      } else {
-        if (length(transcripts) < 2) {
-          stop("Please provide at least 2 valid transcripts to test.")
-        } else {
-          expr_mat <- expr_mat[transcripts, , drop = FALSE]
-        }
-      }
-    # no transcripts supplied are detected
-    } else {
-      stop("None of the transcripts provided were found in the object.")
-    }
+    transcript_filter <- .FilterTranscripts(
+      object,
+      transcripts,
+      quiet = quiet,
+      min.valid = 2,
+      none.message = "None of the transcripts provided were found in the object."
+    )
+    object <- transcript_filter$object
+    transcripts <- transcript_filter$transcripts
   }
 
 
   # DEI
-  object_grp_list <- list()
-
-  ## every group vs all
-  if (is.null(group.1) && is.null(group.2)) {
-
-    # loop through each group to make object list
-    for (grp in unique_groups) {
-
-      # assign group.2
-      group.1 <- grp
-      group.2 <- setdiff(unique_groups, group.1)
-
-      # create an object for grp1 and grp2
-      object_grp1 <- object[, object$group_var == grp]
-      object_grp2 <- object[, object$group_var != grp]
-
-      # update cell groups
-      group.1.updated <- paste0(group.1, collapse = ",")
-      group.2.updated <- paste0(group.2, collapse = ",")
-
-      # add to list
-      object_grp_list[[grp]] <- list("grp1.object" = object_grp1,
-                                     "grp2.object" = object_grp2,
-                                     "grp1.names" = group.1.updated,
-                                     "grp2.names" = group.2.updated)
-
-      # if only two groups, only run one
-      if (length(unique_groups) == 2) {
-        break
-      }
-
-    }
-
-    if (!quiet) message("Running DEI analysis for all groups in '", paste0(group.by, collapse = "_"), "'...")
-
+  object_grp_list <- .BuildGroupComparisons(object, group.1, group.2, unique_groups)
+  comparison_mode <- attr(object_grp_list, "mode")
+  if (!quiet && comparison_mode == "all") {
+    message("Running DEI analysis for all groups in '", paste0(group.by, collapse = "_"), "'...")
+  } else if (!quiet && comparison_mode == "one_vs_all") {
+    comparison <- object_grp_list[["single_test"]]
+    message("Running DEI analysis for ", comparison$grp1.names, " vs all other cells...")
+  } else if (!quiet && comparison_mode == "pair") {
+    comparison <- object_grp_list[["single_test"]]
+    message("Running DEI analysis for ", comparison$grp1.names, " vs ", comparison$grp2.names, "...")
   }
-
-  ## 1 group vs all
-  else if (!is.null(group.1) && is.null(group.2)) {
-
-    # assign group.2
-    group.2 <- setdiff(unique_groups, group.1)
-
-    # create an object for grp1 and grp2
-    object_grp1 <- object[, object$group_var %in% group.1]
-    object_grp2 <- object[, object$group_var %in% group.2]
-
-    # update cell groups
-    group.1.updated <- paste0(group.1, collapse = ",")
-    group.2.updated <- paste0(group.2, collapse = ",")
-
-    # add to list
-    object_grp_list[["single_test"]] <- list("grp1.object" = object_grp1,
-                                             "grp2.object" = object_grp2,
-                                             "grp1.names" = group.1.updated,
-                                             "grp2.names" = group.2.updated)
-
-    if (!quiet) message("Running DEI analysis for ", group.1.updated, " vs all other cells...")
-  }
-
-  ## 2 groups comparison
-  else if (!is.null(group.1) && !is.null(group.2)) {
-
-    # create an object for grp1 and grp2
-    object_grp1 <- object[, object$group_var %in% group.1]
-    object_grp2 <- object[, object$group_var %in% group.2]
-
-    # update cell groups
-    group.1.updated <- paste0(group.1, collapse = ",")
-    group.2.updated <- paste0(group.2, collapse = ",")
-
-    # add to list
-    object_grp_list[["single_test"]] <- list("grp1.object" = object_grp1,
-                                             "grp2.object" = object_grp2,
-                                             "grp1.names" = group.1.updated,
-                                             "grp2.names" = group.2.updated)
-
-    if (!quiet) message("Running DEI analysis for ", group.1.updated, " vs ", group.2.updated, "...")
-
-  }
-
-  ## case: group 1 unspecified but group 2 is specified
-  else if (is.null(group.1) && !is.null(group.2)) {
-    stop("`group.1` must be specified prior to `group.2`")
-  }
-
 
   # Loop through object grp list
   data_list <- list()
@@ -266,6 +164,9 @@ RunDEI <- function(
     test_transcripts <- expr_df %>%
       filter(pct.grp1 >= min.pct & pct.grp2 >= min.pct) %>%
       rownames()
+    if (length(test_transcripts) == 0) {
+      next
+    }
     expr_df <- expr_df[test_transcripts, , drop = FALSE]
     expr_mat_grp1 <- expr_mat_grp1[test_transcripts, , drop = FALSE]
     expr_mat_grp2 <- expr_mat_grp2[test_transcripts, , drop = FALSE]
@@ -295,9 +196,9 @@ RunDEI <- function(
              "group.2" = group.2,
              .before = "gene")
 
-    ## calculate bonferroni corrected p-values (per group)
+    ## calculate adjusted p-values per comparison
     results <- results %>%
-      mutate(padj = p.adjust(pvalue, method = "bonferroni")) %>%
+      mutate(padj = p.adjust(pvalue, method = p.adj)) %>%
       arrange(padj) %>%
       ungroup()
 
@@ -323,6 +224,9 @@ RunDEI <- function(
   }
 
   # combine results from across comparisons
+  if (length(data_list) == 0) {
+    stop("0 transcripts passed detection thresholds (check min.pct).", call. = FALSE)
+  }
   final_results <- reduce(data_list, rbind)
 
   if (!quiet) message("Done.")

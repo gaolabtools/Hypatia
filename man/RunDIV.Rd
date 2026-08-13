@@ -20,41 +20,42 @@ RunDIV(
   include.single = TRUE,
   order = NULL,
   genes = NULL,
+  p.adj = "bonferroni",
   quiet = FALSE
 )
 }
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{group.by}{Name of \code{colData} variable to group cells for comparisons. If \code{NULL}, \code{metadata(object)$active.group.id} will be used.}
+\item{group.by}{One or more \code{colData} column names used to define cell groups. If \code{NULL}, \code{metadata(object)$active.group.id} is used.}
 
-\item{group.1}{First group in the comparison.}
+\item{group.1}{Group label(s) for the first side of the comparison. If \code{NULL}, each group is compared against all others.}
 
-\item{group.2}{Second group in the comparison.}
+\item{group.2}{Optional group label(s) for the second side of the comparison. If \code{NULL}, \code{group.1} is compared against all other cells.}
 
-\item{entropy.use}{The diversity index to calculate.
-Options include \code{"Tsallis"}, \code{"Shannon"}, \code{"NormalizedShannon"}, \code{"Renyi"}, \code{"NormalizedRenyi"}, \code{"GiniSimpson"}, or \code{InverseSimpson}. The default is \code{"Tsallis"}.}
+\item{entropy.use}{Diversity index: \code{"Tsallis"}, \code{"Shannon"}, \code{"NormalizedShannon"}, \code{"Renyi"}, \code{"NormalizedRenyi"}, \code{"GiniSimpson"}, or \code{"InverseSimpson"}.}
 
-\item{assay.use}{Which \code{assay} (counts) to use.}
+\item{assay.use}{Assay name to use.}
 
-\item{entropy.thresh}{Diversity index threshold to use for monoform and polyform classifications.
-Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shannon, 0.435 for Renyi, 0 for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.}
+\item{entropy.thresh}{Threshold used to classify genes as \code{"monoform"} or \code{"polyform"}. If \code{NULL}, a method-specific default is used.}
 
-\item{min.gene.pct}{Minimum percentage of cells in which a gene must be expressed in both groups for it to be tested.}
+\item{min.gene.pct}{Minimum fraction of cells in each group where the gene must be detected.}
 
-\item{min.gene.cts}{Minimum total transcript counts in which a gene must be have in both groups for it be tested.}
+\item{min.gene.cts}{Minimum total gene counts required in each group.}
 
-\item{min.tx.cts}{Minimum transcript counts required for a transcript to be included in the contingency table.}
+\item{min.tx.cts}{Minimum transcript counts required before diversity is calculated.}
 
 \item{boot.iter}{Number of bootstrap iterations to perform.}
 
-\item{boot.size}{Proportion of cells per group from 0.01 to 1 to use for bootstrap subsampling.}
+\item{boot.size}{Proportion of cells sampled per bootstrap iteration.}
 
 \item{include.single}{Logical; if \code{FALSE}, genes with only one associated transcript after filtering will be excluded from the analysis.}
 
-\item{order}{Value specifying the order of entropy. Corresponds to \code{q} for Tsallis and \code{alpha} for Renyi.}
+\item{order}{Entropy order. Corresponds to \code{q} for Tsallis and \code{alpha} for Renyi.}
 
-\item{genes}{A vector containing one or more gene IDs to test.}
+\item{genes}{Optional vector of active gene IDs to test. Genes are still subject to filtering.}
+
+\item{p.adj}{P-value adjustment method. Must be one of \code{stats::p.adjust.methods}.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
 }
@@ -82,10 +83,10 @@ A data frame containing statistical results with columns:
 \item{\code{gene}}{The gene being tested.}
 \item{\code{avgDiv.1}}{Average of bootstrapped isoform diversity of the gene for cells in \code{group.1}.}
 \item{\code{avgDiv.2}}{Average of bootstrapped isoform diversity of the gene for cells in \code{group.2}.}
-\item{\code{delta.div}}{The difference in averaged isoform diversities between groups (\code{group.1} - \code{group.2}).}
+\item{\code{div.diff}}{The difference in averaged isoform diversities between groups (\code{group.1} - \code{group.2}).}
 \item{\code{log2FC}}{The log2 fold-change of averaged isoform diversities between groups (\code{group.1} - \code{group.2}).}
-\item{\code{pval}}{P-value from the Wilcox test comparing bootstrapped isoform diversities across groups.}
-\item{\code{padj}}{Adjusted p-value (Bonferroni correction).}
+\item{\code{pval}}{P-value from the Wilcoxon rank-sum test.}
+\item{\code{padj}}{Adjusted p-value.}
 \item{\code{div.class.1}}{Isoform diversity classification of the gene for \code{group.1}.}
 \item{\code{div.class.2}}{Isoform diversity classification of the gene for \code{group.2}.}
 }
@@ -93,8 +94,5 @@ A data frame containing statistical results with columns:
 }
 }
 \description{
-Performs isoform diversity analysis.
-For each comparison, genes are first filtered according to coverage.
-Gene-level diversity is then calculated by bootstrapping cells in each group. For each bootstrap iteration, transcript counts are aggregated to compute diversity metrics.
-These diversities are then compared across cell groups using the Wilcox test.
+Tests genes for differential isoform diversity between cell groups.
 }

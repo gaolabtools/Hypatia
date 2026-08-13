@@ -1,21 +1,20 @@
 #' Run differential isoform usage analysis
 #'
-#' Runs differential isoform usage analysis.
-#' For each comparison, genes are first filtered according to coverage, counts are aggregated across groups, then the Chi-square or Fisher's exact test is applied.
+#' Tests genes for differential isoform usage between cell groups.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param group.by Name of `colData` variable to group cells for comparisons. If `NULL`, `metadata(object)$active.group.id` will be used.
-#' @param group.1 First group in the comparison.
-#' @param group.2 Second group in the comparison.
-#' @param assay.use Which `assay` (counts) to use.
-#' @param method.use Statistical test, either "Chisq" for Chi-squared test or "Fisher" for Fisher's exact test.
-#' @param min.gene.pct Minimum percentage of cells in which a gene must be expressed in both groups for it to be tested.
-#' @param min.gene.cts Minimum total transcript counts in which a gene must have in both groups for it be tested.
-#' @param min.tx.cts Minimum transcript counts required for a transcript to be included in contingency tables.
-#' @param genes Vector of genes to test. Note: genes will still be subject to filtering.
-#' @param only.valid Logical; if `TRUE`, only tests with valid Chi-square approximations will be reported and corrected for multiple testing.
-#' @param simulate.p Logical; if `TRUE`, p-values are computed using a Monte Carlo simulation. Note: Fisher's exact test always uses simulation.
-#' @param p.adj Method for p-value adjustment. Options are `"BH"` (Benjamini-Hochberg) or `"Bonferroni"`.
+#' @param group.by One or more `colData` column names used to define cell groups. If `NULL`, `metadata(object)$active.group.id` is used.
+#' @param group.1 Group label(s) for the first side of the comparison. If `NULL`, each group is compared against all others.
+#' @param group.2 Optional group label(s) for the second side of the comparison. If `NULL`, `group.1` is compared against all other cells.
+#' @param assay.use Assay name to use.
+#' @param method.use Statistical test: `"Chisq"` or `"Fisher"`.
+#' @param min.gene.pct Minimum fraction of cells in each group where the gene must be detected.
+#' @param min.gene.cts Minimum total gene counts required in each group.
+#' @param min.tx.cts Minimum transcript counts required for inclusion in contingency tables.
+#' @param genes Optional vector of active gene IDs to test. Genes are still subject to filtering.
+#' @param only.valid Logical; if `TRUE`, report only genes with valid Chi-square approximations.
+#' @param simulate.p Logical; if `TRUE`, use Monte Carlo p-values. Fisher's exact test always uses simulation.
+#' @param p.adj P-value adjustment method. Must be one of `stats::p.adjust.methods`.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns A list containing two data frames:
@@ -33,7 +32,7 @@
 #'       \item{`cts.2`}{Total counts of the transcript across all cells in `group.2`.}
 #'       \item{`prop.1`}{Transcript proportion for `group.1`.}
 #'       \item{`prop.2`}{Transcript proportion for `group.2`.}
-#'       \item{`delta`}{The difference in transcript proportions between groups (`group.1` - `group.2`).}
+#'       \item{`prop.diff`}{The difference in transcript proportions between groups (`group.1` - `group.2`).}
 #'     }
 #'   }
 #'
@@ -42,9 +41,10 @@
 #'     \describe{
 #'       \item{`group.1` & `group.2`}{The two cell groups being compared.}
 #'       \item{`gene`}{The gene being tested.}
-#'       \item{`max.delta`}{The largest absolute difference in transcript proportions between `group.1` and `group.2`.}
-#'       \item{`transcript`}{The transcript associated with `max.delta`.}
-#'       \item{`pval`}{P-value from the statistical test specified in `method.use` (default: Chi-square test).}
+#'       \item{`max.prop.diff`}{The largest absolute difference in transcript proportions between `group.1` and `group.2`.}
+#'       \item{`transcript`}{The transcript associated with `max.prop.diff`.}
+#'       \item{`pval`}{P-value from the selected statistical test.}
+#'       \item{`padj`}{Adjusted p-value.}
 #'       \item{`effect.size`}{Effect size of the test, measured as Cramer's V.}
 #'       \item{`approx`}{Indicates whether the Chi-square approximation is valid ("valid") or potentially unreliable ("warning"), based on whether at least 80% of transcript counts of the contingency table exceed 5.}
 #'     }
@@ -56,7 +56,6 @@
 #' @import SummarizedExperiment
 #' @import dplyr
 #' @importFrom tibble rownames_to_column column_to_rownames
-#' @importFrom tidyr unite
 #' @importFrom purrr reduce
 #' @importFrom S4Vectors metadata metadata<-
 #' @importFrom stats chisq.test fisher.test p.adjust
@@ -98,29 +97,16 @@ RunDIU <- function(
   assertCharacter(genes, unique = TRUE, null.ok = TRUE, any.missing = FALSE)
   assertFlag(only.valid)
   assertFlag(simulate.p)
-  assertChoice(p.adj, c("BH", "Bonferroni"))
+  p.adj <- .PAdjustMethod(p.adj)
   assertFlag(quiet)
 
   # Transcript and gene IDs
-  assertString(metadata(object)$active.transcript.id)
-  assertString(metadata(object)$active.gene.id)
-  active.transcript.id <- metadata(object)$active.transcript.id
-  active.gene.id <- metadata(object)$active.gene.id
-  assertChoice(active.gene.id, colnames(rowData(object)))
-  assertFALSE(anyMissing(rowData(object)[[active.gene.id]]))
-
-  if (metadata(object)$active.transcript.id != "") {
-    assertChoice(active.transcript.id, colnames(rowData(object)))
-    assertFALSE(any(duplicated(rowData(object)[[active.transcript.id]])))
-    assertFALSE(anyMissing(rowData(object)[[active.transcript.id]]))
-    rownames(object) <- rowData(object)[[active.transcript.id]]
-  }
+  active_ids <- .ActiveIds(object)
+  object <- active_ids$object
+  active.gene.id <- active_ids$active.gene.id
 
   # Group structure
-  colData(object)$group_var <- colData(object) %>%
-    as.data.frame() %>%
-    unite("group_var", all_of(group.by), sep = "_", remove = FALSE) %>%
-    pull(group_var)
+  colData(object)$group_var <- .GroupVar(object, group.by)
   unique_groups <- unique(colData(object)$group_var)
 
   if (length(unique_groups) < 2) {
@@ -133,107 +119,23 @@ RunDIU <- function(
 
   # Gene filter
   if (!is.null(genes)) {
-    if (any(genes %in% unique(rowData(object)[[active.gene.id]]))) {
-      missing_genes <- setdiff(genes, unique(rowData(object)[[active.gene.id]]))
-      if (length(missing_genes) == length(genes)) {
-        stop("None of the genes were found in the object. (Check active.gene.id?)")
-      }
-      if (length(missing_genes) > 0) {
-        if (!quiet) message("\u2139 Warning: The following genes were not found in the object: '", paste0(missing_genes, collapse = "', '"), "'.")
-        genes <- genes[genes %in% unique(rowData(object)[[active.gene.id]])]
-      }
-      object <- object[rowData(object)[[active.gene.id]] %in% genes, , drop = FALSE]
-    } else {
-      stop("None of the genes were found in the object. (Check active.gene.id?)")
-    }
+    gene_filter <- .FilterGenes(object, genes, active.gene.id, quiet = quiet)
+    object <- gene_filter$object
+    genes <- gene_filter$genes
   }
 
   # DIU
-  object_grp_list <- list()
-
-  ## every group vs all
-  if (is.null(group.1) && is.null(group.2)) {
-
-    # loop through each group to make object list
-    for (grp in unique_groups) {
-
-      # assign group.2
-      group.1 <- grp
-      group.2 <- setdiff(unique_groups, group.1)
-
-      # create an object for grp1 and grp2
-      object_grp1 <- object[, object$group_var == grp]
-      object_grp2 <- object[, object$group_var != grp]
-
-      # update cell groups
-      group.1.updated <- paste0(group.1, collapse = ",")
-      group.2.updated <- paste0(group.2, collapse = ",")
-
-      # add to list
-      object_grp_list[[grp]] <- list("grp1.object" = object_grp1,
-                                     "grp2.object" = object_grp2,
-                                     "grp1.names" = group.1.updated,
-                                     "grp2.names" = group.2.updated)
-
-      # if only two groups, only run one
-      if (length(unique_groups) == 2) {
-        break
-      }
-    }
-
-    if (!quiet) message("Running DIU analysis for all groups in '", paste0(group.by, collapse = "_"), "'...")
-
+  object_grp_list <- .BuildGroupComparisons(object, group.1, group.2, unique_groups)
+  comparison_mode <- attr(object_grp_list, "mode")
+  if (!quiet && comparison_mode == "all") {
+    message("Running DIU analysis for all groups in '", paste0(group.by, collapse = "_"), "'...")
+  } else if (!quiet && comparison_mode == "one_vs_all") {
+    comparison <- object_grp_list[["single_test"]]
+    message("Running DIU analysis for ", comparison$grp1.names, " vs all other cells...")
+  } else if (!quiet && comparison_mode == "pair") {
+    comparison <- object_grp_list[["single_test"]]
+    message("Running DIU analysis for ", comparison$grp1.names, " vs ", comparison$grp2.names, "...")
   }
-
-  ## 1 group vs all
-  else if (!is.null(group.1) && is.null(group.2)) {
-
-    # assign group.2
-    group.2 <- setdiff(unique_groups, group.1)
-
-    # create an object for grp1 and grp2
-    object_grp1 <- object[, object$group_var %in% group.1]
-    object_grp2 <- object[, object$group_var %in% group.2]
-
-    # update cell groups
-    group.1.updated <- paste0(group.1, collapse = ",")
-    group.2.updated <- paste0(group.2, collapse = ",")
-
-    # add to list
-    object_grp_list[["single_test"]] <- list("grp1.object" = object_grp1,
-                                             "grp2.object" = object_grp2,
-                                             "grp1.names" = group.1.updated,
-                                             "grp2.names" = group.2.updated)
-
-    if (!quiet) message("Running DIU analysis for ", group.1.updated, " vs all other cells...")
-  }
-
-  ## 2 groups comparison
-  else if (!is.null(group.1) && !is.null(group.2)) {
-
-    # create an object for grp1 and grp2
-    object_grp1 <- object[, object$group_var %in% group.1]
-    object_grp2 <- object[, object$group_var %in% group.2]
-
-    # update cell groups
-    group.1.updated <- paste0(group.1, collapse = ",")
-    group.2.updated <- paste0(group.2, collapse = ",")
-
-    # add to list
-    object_grp_list[["single_test"]] <- list("grp1.object" = object_grp1,
-                                             "grp2.object" = object_grp2,
-                                             "grp1.names" = group.1.updated,
-                                             "grp2.names" = group.2.updated)
-
-    if (!quiet) message("Running DIU analysis for ", group.1.updated, " vs ", group.2.updated, "...")
-
-  }
-
-  ## case: group 1 unspecified but group 2 is specified
-  else if (is.null(group.1) && !is.null(group.2)) {
-    stop("`group.1` must be specified prior to `group.2`")
-  }
-
 
   # Loop through object grp list
   data_list <- list()
@@ -280,8 +182,8 @@ RunDIU <- function(
     filt_genes$gene.id <- rownames(filt_genes)
 
     ## filter genes from grp objects
-    filt_object_grp1 <- object_grp1[rowData(object_grp1)[[active.gene.id]] %in% rownames(filt_genes), drop = FALSE]
-    filt_object_grp2 <- object_grp2[rowData(object_grp2)[[active.gene.id]] %in% rownames(filt_genes), drop = FALSE]
+    filt_object_grp1 <- object_grp1[rowData(object_grp1)[[active.gene.id]] %in% rownames(filt_genes), , drop = FALSE]
+    filt_object_grp2 <- object_grp2[rowData(object_grp2)[[active.gene.id]] %in% rownames(filt_genes), , drop = FALSE]
 
     ## aggregate transcript counts
     agg_cts_df <- data.frame("gene.id.1" = rowData(filt_object_grp1)[[active.gene.id]],
@@ -339,7 +241,7 @@ RunDIU <- function(
     }
     if (!quiet) message("  Performing DIU comparisons...")
 
-    ## proportion and delta
+    ## proportion difference
     diu_data <- agg_cts_df %>%
       group_by(gene.id) %>%
       mutate(prop.1 = cts.1 / sum(cts.1),
@@ -362,7 +264,7 @@ RunDIU <- function(
                     "cts.2" = cts.2,
                     "prop.1" = prop.1,
                     "prop.2" = prop.2,
-                    "delta" = dprop) %>%
+                    "prop.diff" = dprop) %>%
       arrange(group.1, gene)
 
     ## test statistics
@@ -424,7 +326,7 @@ RunDIU <- function(
                                    "cts.2" = numeric(),
                                    "prop.1" = numeric(),
                                    "prop.2" = numeric(),
-                                   "delta" = numeric())
+                                   "prop.diff" = numeric())
   }
   if (length(stats_list) > 0) {
     return_list$stats <- as.data.frame(reduce(stats_list, rbind))
@@ -432,11 +334,12 @@ RunDIU <- function(
     return_list$stats <- data.frame("group.1" = character(),
                                     "group.2" = character(),
                                     "gene" = character(),
-                                    "max.delta" = numeric(),
+                                    "max.prop.diff" = numeric(),
+                                    "transcript" = character(),
                                     "pval" = numeric(),
-                                    "padj" = character(),
-                                    "effect.size" = character(),
-                                    "approx" = numeric())
+                                    "padj" = numeric(),
+                                    "effect.size" = numeric(),
+                                    "approx" = character())
   }
 
   if (length(stats_list) == 0 && length(data_list) == 0) {

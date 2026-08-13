@@ -2,18 +2,19 @@
 % Please edit documentation in R/SetGroups.R
 \name{SetGroups}
 \alias{SetGroups}
-\title{Set the active cell group}
+\title{Set active cell groups}
 \usage{
 SetGroups(object, id)
 }
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{id}{Name of \code{colData} column containing the desired cell groups (cell types, cell states, sample ID, etc.).}
+\item{id}{Name of the \code{colData} column containing cell groups.
+Character and factor columns are supported.}
 }
 \value{
-Returns object with updated \code{active.group.id} stored in \code{metadata(object)}.
+The object with \code{metadata(object)$active.group.id} updated.
 }
 \description{
-Sets or updates the active cell group for downstream functions.
+Selects the \code{colData} column used as the default cell grouping in downstream functions.
 }

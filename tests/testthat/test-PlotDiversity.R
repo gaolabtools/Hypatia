@@ -26,3 +26,26 @@ test_that("PlotDiversity works", {
   expect_class(p_pc, "ggplot")
 
 })
+
+test_that("PlotDiversity labels combined group variables consistently", {
+
+  gbm <-
+    CreateSCE(
+      countData = gbm_countData,
+      colData = gbm_colData,
+      rowData = gbm_rowData,
+      quiet = TRUE,
+      active.group.id = "cell_type"
+    )
+
+  p <- PlotDiversity(
+    gbm,
+    genes = unique(gbm_rowData$gene_id)[1:3],
+    group.by = c("cell_type", "project"),
+    group.subset = "Tumor_Project",
+    min.tx.cts = 0,
+    quiet = TRUE
+  )
+
+  expect_equal(p$labels$colour, "cell_type_project")
+})

@@ -25,27 +25,25 @@ PlotDiversity(
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{genes}{A vector of one or more gene IDs.}
+\item{genes}{Vector of active gene IDs to plot.}
 
-\item{group.by}{Name of \code{colData} variable to group cells. If \code{NULL}, \code{metadata(object)$active.group.id} will be used.}
+\item{group.by}{One or more \code{colData} column names used to define cell groups. If \code{NULL}, \code{metadata(object)$active.group.id} is used.}
 
-\item{group.subset}{An optional vector specifying a subset of the elements in \code{group.by} to include.}
+\item{group.subset}{Optional vector of group labels to include.}
 
-\item{group.order}{An optional vector specifying the order of group elements.}
+\item{group.order}{Optional vector of group labels specifying plotting order.}
 
-\item{plot.type}{Which type of plot to generate. Options include \code{"lollipop"}, \code{"density"}, and \code{"pcoord"}.}
+\item{plot.type}{Plot type: \code{"lollipop"}, \code{"density"}, or \code{"pcoord"}.}
 
-\item{entropy.use}{The diversity index to calculate.
-Options include \code{"Tsallis"}, \code{"Shannon"}, \code{"NormalizedShannon"}, \code{"Renyi"}, \code{"NormalizedRenyi"}, \code{"GiniSimpson"}, or \code{InverseSimpson}.}
+\item{entropy.use}{Diversity index: \code{"Tsallis"}, \code{"Shannon"}, \code{"NormalizedShannon"}, \code{"Renyi"}, \code{"NormalizedRenyi"}, \code{"GiniSimpson"}, or \code{"InverseSimpson"}.}
 
-\item{assay.use}{Which \code{assay} (counts) to use.}
+\item{assay.use}{Assay name to use.}
 
-\item{entropy.thresh}{The threshold of the diversity index used for monoform and polyform classification.
-Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shannon, 0.435 for Renyi, 0 for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.}
+\item{entropy.thresh}{Threshold used to classify genes as \code{"monoform"} or \code{"polyform"}. If \code{NULL}, a method-specific default is used.}
 
-\item{min.tx.cts}{Minimum transcript counts required for a transcript to be included in the contingency table.}
+\item{min.tx.cts}{Minimum transcript counts required before diversity is calculated.}
 
-\item{order}{Value specifying the order of entropy. Corresponds to \code{q} for Tsallis (default: 3) and \code{alpha} for Renyi (default: 2).}
+\item{order}{Entropy order. Corresponds to \code{q} for Tsallis and \code{alpha} for Renyi.}
 
 \item{colors}{A vector of colors to use for the plot.}
 
@@ -59,5 +57,5 @@ Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shann
 A ggplot object.
 }
 \description{
-Generates plots showing the isoform diversity of one or more genes.
+Plots isoform diversity for one or more genes across cell groups.
 }

@@ -1,19 +1,19 @@
 #' Visualize isoform usage across cell groups
 #'
-#' Generates plots showing the isoform usage of a gene.
+#' Plots transcript proportions for a gene across cell groups.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param gene A gene ID.
-#' @param group.by Name of `colData` variable to group cells. If `NULL`, `metadata(object)$active.group.id` will be used.
-#' @param group.subset An optional vector specifying a subset of the elements in `group.by` to include.
-#' @param group.order An optional vector specifying the order of group elements.
-#' @param plot.type Which type of plot to generate. Options include `"stackedbar"`, `"bar"`, `"pie"`, and `"heatmap"`.
+#' @param gene Active gene ID to plot.
+#' @param group.by One or more `colData` column names used to define cell groups. If `NULL`, `metadata(object)$active.group.id` is used.
+#' @param group.subset Optional vector of group labels to include.
+#' @param group.order Optional vector of group labels specifying plotting order.
+#' @param plot.type Plot type: `"stackedbar"`, `"bar"`, `"pie"`, or `"heatmap"`.
 #' @param colors A vector of colors to use for the plot.
 #' @param show.prop Logical; if `TRUE`, proportion labels will be included on the plot.
 #' @param nrow Number of facet rows.
-#' @param assay.use Which `assay` (counts) to use.
-#' @param min.tx.cts Minimum transcript counts in at least 1 group required for a transcript to be included in proportion calculations.
-#' @param min.tx.prop Minimum transcript proportion required for a transcript to be plotted. Note: This parameter is intended for use with the `"heatmap"` plot type.
+#' @param assay.use Assay name to use.
+#' @param min.tx.cts Minimum transcript counts in at least one group before proportions are calculated.
+#' @param min.tx.prop Minimum transcript proportion to plot separately; lower-proportion transcripts are collapsed into `"Other"`.
 #' @param text.size Text size.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
@@ -26,7 +26,6 @@
 #' @importFrom tidyr pivot_longer
 #' @import ggplot2
 #' @import patchwork
-#' @importFrom grDevices colorRampPalette
 
 PlotUsage <- function(
     object,
@@ -69,20 +68,11 @@ PlotUsage <- function(
   assertFlag(quiet)
 
   # Transcript and gene IDs
-  assertString(metadata(object)$active.transcript.id)
-  assertString(metadata(object)$active.gene.id)
-  active.transcript.id <- metadata(object)$active.transcript.id
-  active.gene.id <- metadata(object)$active.gene.id
-  assertChoice(active.gene.id, colnames(rowData(object)))
-  assertFALSE(anyMissing(rowData(object)[[active.gene.id]]))
+  active_ids <- .ActiveIds(object)
+  object <- active_ids$object
+  active.transcript.id <- active_ids$active.transcript.id
+  active.gene.id <- active_ids$active.gene.id
   assertTRUE(gene %in% rowData(object)[[active.gene.id]])
-
-  if (metadata(object)$active.transcript.id != "") {
-    assertChoice(active.transcript.id, colnames(rowData(object)))
-    assertFALSE(any(duplicated(rowData(object)[[active.transcript.id]])))
-    assertFALSE(anyMissing(rowData(object)[[active.transcript.id]]))
-    rownames(object) <- rowData(object)[[active.transcript.id]]
-  }
 
   gene.id.df <- rowData(object)[active.gene.id] %>%
     as.data.frame() %>%
@@ -90,17 +80,15 @@ PlotUsage <- function(
     rename("gene_query" = all_of(active.gene.id))
 
   # Group structure
-  colData(object)$group_var <- colData(object) %>%
-    as.data.frame() %>%
-    unite("group_var", all_of(group.by), sep = "_", remove = FALSE) %>%
-    pull(group_var)
+  colData(object)$group_var <- .GroupVar(object, group.by)
   unique_groups <- unique(colData(object)$group_var)
+  group_label <- paste0(group.by, collapse = "_")
   ## check group subset
   assertSubset(group.subset, unique_groups, empty.ok = TRUE)
 
   ## subset cells
   if (!is.null(group.subset)) {
-    object <- object[, colData(object)$group_var %in% group.subset]
+    object <- object[, colData(object)$group_var %in% group.subset, drop = FALSE]
   }
 
   # Expression mat
@@ -116,7 +104,9 @@ PlotUsage <- function(
     left_join(., gene.id.df, by = "transcripts_query") %>%
     pivot_longer(-c("transcripts_query", "gene_query"), names_to = "group_var", values_to = "grp_cts") %>%
     ## filter isoforms by counts
+    group_by(transcripts_query) %>%
     filter(any(grp_cts >= min.tx.cts)) %>%
+    ungroup() %>%
     ## calculate isoform props
     group_by(group_var) %>%
     mutate(prop = grp_cts / sum(grp_cts)) %>%
@@ -127,7 +117,9 @@ PlotUsage <- function(
     pull(group_var) %>%
     unique()
 
-  if (!quiet && length(missing_groups) > 0) message("\u2139 Warning: Zero isoform counts detected for '", paste0(missing_groups, collapse = "', "), "'.")
+  if (!quiet && length(missing_groups) > 0) {
+    message("\u2139 Warning: Zero isoform counts detected for '", paste0(missing_groups, collapse = "', '"), "'.")
+  }
 
   ## order groups
   if (!is.null(group.order)) {
@@ -145,7 +137,7 @@ PlotUsage <- function(
     }
   }
   if (plot.type != "heatmap") {
-      group_var_order <- rev(group_var_order)
+    group_var_order <- rev(group_var_order)
   }
 
   plotdata <- plotdata %>%
@@ -204,7 +196,7 @@ PlotUsage <- function(
     p1 <- ggplot(plotdata) +
       geom_col(aes(y = prop, x = group_var, fill = transcripts_query), position = position_stack(reverse = TRUE)) +
       ylim(c(0, 1.01)) +
-      xlab(group.by) +
+      xlab(group_label) +
       ylab("Proportion") +
       theme_linedraw(base_size = text.size) +
       labs(title = gene, fill = active.transcript.id) +
@@ -257,7 +249,7 @@ PlotUsage <- function(
       geom_tile(aes(y = group_var, x = transcripts_query, fill = prop), color = "black") +
       # coord_fixed() +
       xlab(active.transcript.id) +
-      ylab(group.by) +
+      ylab(group_label) +
       labs(title = gene, fill = NULL) +
       theme_linedraw(base_size = text.size) +
       theme(plot.title = element_text(hjust = 0.5),
@@ -281,12 +273,8 @@ PlotUsage <- function(
     } else {
       n_colors <- length(unique(plotdata$transcripts_query))
       colors <- c("#FBB463", "#80B1D3", "#F47F72", "#BDBAD8", "#FBF8B4", "#8DD1C6")
-      if (n_colors > length(colors)) {
-        cont_palette <- colorRampPalette(colors)
-        colors <- cont_palette(n_colors)
-      }
+      colors <- .DefaultDiscreteColors(n_colors, colors)
       if ("Other" %in% plotdata$transcripts_query) {
-        colors <- colors[1:n_colors]
         colors[length(colors)] <- "#9E9E9E"
       }
       p1 <- p1 +

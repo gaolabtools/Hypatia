@@ -2,7 +2,7 @@
 % Please edit documentation in R/GetExpression.R
 \name{GetExpression}
 \alias{GetExpression}
-\title{Get summarized isoform expression}
+\title{Get isoform expression summaries}
 \usage{
 GetExpression(
   object,
@@ -17,15 +17,15 @@ GetExpression(
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{transcripts}{A vector containing one or more transcript IDs.}
+\item{transcripts}{Vector of active transcript IDs to summarize. Ignored when \code{genes} is supplied.}
 
-\item{genes}{A vector containing one or more gene IDs. Will retrieve data for associated transcripts.}
+\item{genes}{Optional vector of active gene IDs. When supplied, all associated transcripts are summarized.}
 
-\item{group.by}{Name of \code{colData} variable to group cells. If \code{NULL}, \code{metadata(object)$active.group.id} will be used.}
+\item{group.by}{One or more \code{colData} column names used to define cell groups. If \code{NULL}, \code{metadata(object)$active.group.id} is used.}
 
-\item{group.subset}{An optional vector specifying a subset of the elements in \code{group.by} to include.}
+\item{group.subset}{Optional vector of group labels to include.}
 
-\item{assay.use}{Which \code{assay} (counts) to use.}
+\item{assay.use}{Assay name to use.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
 }
@@ -35,10 +35,10 @@ A data frame with the following columns:
 \item{\code{group}}{The cell group being queried.}
 \item{\code{gene}}{The (associated) gene being queried.}
 \item{\code{transcript}}{The transcript being queried.}
-\item{\code{transcript.pct}}{Percentage of cells in \code{group} with expression of the transcript.}
+\item{\code{pct}}{Percentage of cells in \code{group} with expression of the transcript.}
 \item{\code{avgExpr}}{Average expression of the transcript across all cells in \code{group}.}
 }
 }
 \description{
-Retrieves summarized isoform expression data of one or more transcripts.
+Summarizes transcript detection and average expression by cell group.
 }

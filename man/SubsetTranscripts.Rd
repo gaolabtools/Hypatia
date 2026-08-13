@@ -15,18 +15,17 @@ SubsetTranscripts(
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{subset}{A logical expression evaluated within the \code{rowData} of the object.
-Rows (transcripts) for which the expression evaluates to \code{TRUE} will be retained. Supports column names from \code{rowData} and standard logical operators.}
+\item{subset}{Logical expression evaluated in \code{rowData(object)}. Provide exactly one of \code{subset} or \code{transcripts}.}
 
-\item{transcripts}{A vector of transcript IDs for filtering.}
+\item{transcripts}{Optional vector of transcript IDs. Uses active transcript IDs when \code{active.transcript.id} is set. Provide exactly one of \code{subset} or \code{transcripts}.}
 
-\item{invert}{Logical; if \code{TRUE}, inverts the selection to remove the transcripts instead.}
+\item{invert}{Logical; if \code{TRUE}, remove the selected transcripts instead of keeping them.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
 }
 \value{
-Returns the object after transcript selection.
+The object after transcript selection, with cell QC columns updated.
 }
 \description{
-Subset a \code{SingleCellExperiment} object by transcripts.
+Subsets a \code{SingleCellExperiment} object by transcript metadata or transcript IDs.
 }

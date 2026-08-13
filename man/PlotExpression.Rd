@@ -28,29 +28,29 @@ PlotExpression(
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{transcripts}{A vector of one or more transcript IDs.}
+\item{transcripts}{Vector of active transcript IDs to plot.}
 
-\item{group.by}{Name of \code{colData} variable to group cells. If \code{NULL}, \code{metadata(object)$active.group.id} will be used.}
+\item{group.by}{One or more \code{colData} column names used to define cell groups. If \code{NULL}, \code{metadata(object)$active.group.id} is used.}
 
-\item{group.subset}{An optional vector specifying a subset of the elements in \code{group.by} to include.}
+\item{group.subset}{Optional vector of group labels to include.}
 
-\item{group.order}{An optional vector specifying the order of group elements.}
+\item{group.order}{Optional vector of group labels specifying plotting order.}
 
-\item{plot.type}{Which type of plot to generate. Options include \code{"violin"}, \code{"reducedDim"}, and \code{"heatmap"}.}
+\item{plot.type}{Plot type: \code{"violin"}, \code{"reducedDim"}, or \code{"heatmap"}.}
 
 \item{colors}{A vector of colors to use for the plot.}
 
 \item{colors.heatmap}{A vector of colors for the heatmap color bar.}
 
-\item{dim.use}{Name of dimensions to use in the \code{reducedDim} slot of the object. This parameter is for the \code{reducedDim} plot type.}
+\item{dim.use}{Name of the \code{reducedDim} slot to use when \code{plot.type = "reducedDim"}.}
 
-\item{assay.use}{Which \code{assay} (counts) to use.}
+\item{assay.use}{Assay name to use.}
 
 \item{scale.heatmap}{Logical; if \code{TRUE}, standardizes and clips expression values for the heatmap.}
 
 \item{pt.size}{Point size for the \code{violin} and \code{reducedDim} plots.}
 
-\item{pt.alpha}{Point alpha for the \code{violin} and `reducedDim`` plots.}
+\item{pt.alpha}{Point alpha for the \code{violin} and \code{reducedDim} plots.}
 
 \item{text.size}{Text size.}
 
@@ -66,5 +66,5 @@ PlotExpression(
 A ggplot object.
 }
 \description{
-Generates plots showing the isoform expression of one or more transcripts.
+Plots transcript expression across cell groups or embeddings.
 }

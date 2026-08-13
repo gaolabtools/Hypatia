@@ -2,7 +2,7 @@
 % Please edit documentation in R/GetUsage.R
 \name{GetUsage}
 \alias{GetUsage}
-\title{Get summarized isoform usage data}
+\title{Get isoform usage summaries}
 \usage{
 GetUsage(
   object,
@@ -17,15 +17,15 @@ GetUsage(
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{genes}{A vector of one or more gene IDs.}
+\item{genes}{Vector of active gene IDs to summarize.}
 
-\item{group.by}{Name of \code{colData} variable to group cells. If \code{NULL}, \code{metadata(object)$active.group.id} will be used.}
+\item{group.by}{One or more \code{colData} column names used to define cell groups. If \code{NULL}, \code{metadata(object)$active.group.id} is used.}
 
-\item{group.subset}{An optional vector specifying a subset of the elements in \code{group.by} to include.}
+\item{group.subset}{Optional vector of group labels to include.}
 
-\item{assay.use}{Which \code{assay} (counts) to use.}
+\item{assay.use}{Assay name to use.}
 
-\item{min.tx.cts}{Minimum transcript counts required for a transcript to be included in proportion calculations.}
+\item{min.tx.cts}{Minimum transcript counts required before proportions are calculated.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
 }
@@ -41,5 +41,5 @@ A data frame with the following columns:
 }
 }
 \description{
-Retrieves summarized isoform usage data of one or more genes.
+Summarizes isoform counts and proportions for one or more genes.
 }

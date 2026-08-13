@@ -1,13 +1,13 @@
-#' Get summarized isoform usage data
+#' Get isoform usage summaries
 #'
-#' Retrieves summarized isoform usage data of one or more genes.
+#' Summarizes isoform counts and proportions for one or more genes.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param genes A vector of one or more gene IDs.
-#' @param group.by Name of `colData` variable to group cells. If `NULL`, `metadata(object)$active.group.id` will be used.
-#' @param group.subset An optional vector specifying a subset of the elements in `group.by` to include.
-#' @param assay.use Which `assay` (counts) to use.
-#' @param min.tx.cts Minimum transcript counts required for a transcript to be included in proportion calculations.
+#' @param genes Vector of active gene IDs to summarize.
+#' @param group.by One or more `colData` column names used to define cell groups. If `NULL`, `metadata(object)$active.group.id` is used.
+#' @param group.subset Optional vector of group labels to include.
+#' @param assay.use Assay name to use.
+#' @param min.tx.cts Minimum transcript counts required before proportions are calculated.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns A data frame with the following columns:
@@ -24,7 +24,7 @@
 #' @import SingleCellExperiment
 #' @import SummarizedExperiment
 #' @import dplyr
-#' @importFrom tidyr pivot_longer unite
+#' @importFrom tidyr pivot_longer
 
 GetUsage <- function (
     object,
@@ -52,19 +52,9 @@ GetUsage <- function (
   assertFlag(quiet)
 
   # Transcript and gene IDs
-  assertString(metadata(object)$active.transcript.id)
-  assertString(metadata(object)$active.gene.id)
-  active.transcript.id <- metadata(object)$active.transcript.id
-  active.gene.id <- metadata(object)$active.gene.id
-  assertChoice(active.gene.id, colnames(rowData(object)))
-  assertFALSE(anyMissing(rowData(object)[[active.gene.id]]))
-
-  if (metadata(object)$active.transcript.id != "") {
-    assertChoice(active.transcript.id, colnames(rowData(object)))
-    assertFALSE(any(duplicated(rowData(object)[[active.transcript.id]])))
-    assertFALSE(anyMissing(rowData(object)[[active.transcript.id]]))
-    rownames(object) <- rowData(object)[[active.transcript.id]]
-  }
+  active_ids <- .ActiveIds(object)
+  object <- active_ids$object
+  active.gene.id <- active_ids$active.gene.id
 
   gene.id.df <- rowData(object)[active.gene.id] %>%
     as.data.frame() %>%
@@ -72,31 +62,18 @@ GetUsage <- function (
     rename("gene_query" = all_of(active.gene.id))
 
   # Gene filter
-  if (any(genes %in% unique(rowData(object)[[active.gene.id]]))) {
-    missing_genes <- setdiff(genes, unique(rowData(object)[[active.gene.id]]))
-    if (length(missing_genes) == length(genes)) {
-      stop("None of the genes were found in the object. (Check active.gene.id?)")
-    }
-    if (length(missing_genes) > 0) {
-      if (!quiet) message("\u2139 Warning: The following genes were not found in the object: '", paste0(missing_genes, collapse = "', '"), "'.")
-      genes <- genes[genes %in% unique(rowData(object)[[active.gene.id]])]
-    }
-    object <- object[rowData(object)[[active.gene.id]] %in% genes, , drop = FALSE]
-  } else {
-    stop("None of the genes were found in the object. (Check active.gene.id?)")
-  }
+  gene_filter <- .FilterGenes(object, genes, active.gene.id, quiet = quiet)
+  object <- gene_filter$object
+  genes <- gene_filter$genes
 
   # Group structure
-  colData(object)$group_var <- colData(object) %>%
-    as.data.frame() %>%
-    unite("group_var", all_of(group.by), sep = "_", remove = FALSE) %>%
-    pull(group_var)
+  colData(object)$group_var <- .GroupVar(object, group.by)
   unique_groups <- unique(colData(object)$group_var)
   ## check group subset
   assertSubset(group.subset, unique_groups, empty.ok = TRUE)
   ## subset cells
   if (!is.null(group.subset)) {
-    object <- object[, colData(object)$group_var %in% group.subset]
+    object <- object[, colData(object)$group_var %in% group.subset, drop = FALSE]
   }
 
   # Expression mat

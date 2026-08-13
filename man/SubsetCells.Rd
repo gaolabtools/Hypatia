@@ -9,18 +9,17 @@ SubsetCells(object, subset = NULL, cells = NULL, invert = FALSE, quiet = FALSE)
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{subset}{A logical expression evaluated within the \code{colData} of the object.
-Rows (cells) for which the expression evaluates to \code{TRUE} will be retained. Supports column names from \code{colData} and standard logical operators.}
+\item{subset}{Logical expression evaluated in \code{colData(object)}. Provide exactly one of \code{subset} or \code{cells}.}
 
-\item{cells}{A vector of cell IDs for filtering.}
+\item{cells}{Optional vector of cell IDs. Provide exactly one of \code{subset} or \code{cells}.}
 
-\item{invert}{Logical; if \code{TRUE}, inverts the selection to remove the cells instead.}
+\item{invert}{Logical; if \code{TRUE}, remove the selected cells instead of keeping them.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
 }
 \value{
-Returns the object after cell selection.
+The object after cell selection, with transcript QC columns updated.
 }
 \description{
-Subsets a \code{SingleCellExperiment} object by cells.
+Subsets a \code{SingleCellExperiment} object by cell metadata or cell IDs.
 }

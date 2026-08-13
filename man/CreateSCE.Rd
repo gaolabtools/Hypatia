@@ -18,19 +18,17 @@ CreateSCE(
 )
 }
 \arguments{
-\item{countData}{A numeric matrix containing raw single-cell isoform counts where row names are transcript IDs and column names are cell IDs.}
+\item{countData}{Numeric matrix, sparse matrix, or data frame of raw isoform counts. Row names are transcript IDs and column names are cell IDs.}
 
 \item{colData}{A data frame of cell-level metadata. Row names must match the column names of \code{countData}.}
 
-\item{rowData}{A data frame of isoform-level metadata. Row names must match the column names of \code{countData}.
-Must include a column specifying gene IDs associated with each isoform as defined by the \code{active.gene.id} parameter.}
+\item{rowData}{A data frame of transcript-level metadata. Row names must match the row names of \code{countData}. Must include the column named by \code{active.gene.id}.}
 
-\item{active.gene.id}{Name of the column in \code{rowData} containing associated gene IDs associated with each isoform.
-Defaults to \code{"gene_id"}.}
+\item{active.gene.id}{Name of the \code{rowData} column containing gene IDs for each transcript.}
 
-\item{active.group.id}{Name of the column in \code{colData} that defines cell grouping used in downstream functions. If \code{NULL}, no default grouping is assigned to the object metadata.}
+\item{active.group.id}{Optional \code{colData} column name to use as the default cell grouping in downstream functions.}
 
-\item{active.transcript.id}{Name of the column in \code{rowData} containing alternative transcript IDs (transcript names, ENST IDs, etc.) to use instead of row names of \code{countData}. Values in this column must be unique.}
+\item{active.transcript.id}{Optional \code{rowData} column name containing unique transcript IDs to report instead of row names.}
 
 \item{gtf}{A \code{GRanges} object containing structural annotations for all transcripts in \code{countData}.}
 
@@ -41,8 +39,8 @@ Defaults to \code{"gene_id"}.}
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
 }
 \value{
-A \code{SingleCellExperiment} object.
+A \code{SingleCellExperiment} object with a \code{"counts"} assay, QC columns in \code{colData}/\code{rowData}, and Hypatia settings in \code{metadata(object)}.
 }
 \description{
-Creates a \code{SingleCellExperiment} object from isoform counts, cell-level metadata, and isoform-level metadata.
+Creates a \code{SingleCellExperiment} object from isoform counts, cell-level metadata, and transcript-level metadata.
 }

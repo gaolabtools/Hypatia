@@ -2,7 +2,7 @@
 % Please edit documentation in R/GetDiversity.R
 \name{GetDiversity}
 \alias{GetDiversity}
-\title{Get summarized isoform diversity data}
+\title{Get isoform diversity summaries}
 \usage{
 GetDiversity(
   object,
@@ -20,23 +20,21 @@ GetDiversity(
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{genes}{A vector of one or more gene IDs.}
+\item{genes}{Vector of active gene IDs to summarize.}
 
-\item{group.by}{Name of \code{colData} variable to group cells. If \code{NULL}, \code{metadata(object)$active.group.id} will be used.}
+\item{group.by}{One or more \code{colData} column names used to define cell groups. If \code{NULL}, \code{metadata(object)$active.group.id} is used.}
 
-\item{group.subset}{An optional vector specifying a subset of the elements in \code{group.by} to include.}
+\item{group.subset}{Optional vector of group labels to include.}
 
-\item{entropy.use}{The diversity index to calculate.
-Options include \code{"Tsallis"}, \code{"Shannon"}, \code{"NormalizedShannon"}, \code{"Renyi"}, \code{"NormalizedRenyi"}, \code{"GiniSimpson"}, or \code{InverseSimpson}.}
+\item{entropy.use}{Diversity index: \code{"Tsallis"}, \code{"Shannon"}, \code{"NormalizedShannon"}, \code{"Renyi"}, \code{"NormalizedRenyi"}, \code{"GiniSimpson"}, or \code{"InverseSimpson"}.}
 
-\item{assay.use}{Which \code{assay} (counts) to use.}
+\item{assay.use}{Assay name to use.}
 
-\item{entropy.thresh}{The threshold of the diversity index used for monoform and polyform classification.
-Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shannon, 0.435 for Renyi, 0 for normalized Renyi, 0.348 for Gini-Simpson, and 1.533 for inverse Simpson.}
+\item{entropy.thresh}{Threshold used to classify genes as \code{"monoform"} or \code{"polyform"}. If \code{NULL}, a method-specific default is used.}
 
-\item{min.tx.cts}{Minimum transcript counts required for a transcript to be included in the contingency table.}
+\item{min.tx.cts}{Minimum transcript counts required before diversity is calculated.}
 
-\item{order}{Value specifying the order of entropy. Corresponds to \code{q} for Tsallis (default: 3) and \code{alpha} for Renyi (default: 2).}
+\item{order}{Entropy order. Corresponds to \code{q} for Tsallis and \code{alpha} for Renyi.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
 }
@@ -44,7 +42,7 @@ Default cutoffs are 0.243 for Tsallis, 0.500 for Shannon, 0 for normalized Shann
 A data frame with the following columns:
 \describe{
 \item{\code{group}}{The cell group being queried.}
-\item{\code{gene}}{The gene being queried}
+\item{\code{gene}}{The gene being queried.}
 \item{\code{gene.pct}}{Percentage of cells in \code{group} with expression of the gene.}
 \item{\code{n.transcripts}}{Number of associated transcripts for the gene.}
 \item{\code{transcript}}{The associated transcript.}
@@ -54,5 +52,5 @@ A data frame with the following columns:
 }
 }
 \description{
-Retrieves summarized isoform diversity data of one or more genes.
+Summarizes transcript proportions and isoform diversity for one or more genes.
 }

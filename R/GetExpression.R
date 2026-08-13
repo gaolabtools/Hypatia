@@ -1,13 +1,13 @@
-#' Get summarized isoform expression
+#' Get isoform expression summaries
 #'
-#' Retrieves summarized isoform expression data of one or more transcripts.
+#' Summarizes transcript detection and average expression by cell group.
 #'
 #' @param object A `SingleCellExperiment` object.
-#' @param transcripts A vector containing one or more transcript IDs.
-#' @param genes A vector containing one or more gene IDs. Will retrieve data for associated transcripts.
-#' @param group.by Name of `colData` variable to group cells. If `NULL`, `metadata(object)$active.group.id` will be used.
-#' @param group.subset An optional vector specifying a subset of the elements in `group.by` to include.
-#' @param assay.use Which `assay` (counts) to use.
+#' @param transcripts Vector of active transcript IDs to summarize. Ignored when `genes` is supplied.
+#' @param genes Optional vector of active gene IDs. When supplied, all associated transcripts are summarized.
+#' @param group.by One or more `colData` column names used to define cell groups. If `NULL`, `metadata(object)$active.group.id` is used.
+#' @param group.subset Optional vector of group labels to include.
+#' @param assay.use Assay name to use.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns A data frame with the following columns:
@@ -15,7 +15,7 @@
 #'   \item{`group`}{The cell group being queried.}
 #'   \item{`gene`}{The (associated) gene being queried.}
 #'   \item{`transcript`}{The transcript being queried.}
-#'   \item{`transcript.pct`}{Percentage of cells in `group` with expression of the transcript.}
+#'   \item{`pct`}{Percentage of cells in `group` with expression of the transcript.}
 #'   \item{`avgExpr`}{Average expression of the transcript across all cells in `group`.}
 #' }
 #' @export
@@ -23,7 +23,7 @@
 #' @import SingleCellExperiment
 #' @import SummarizedExperiment
 #' @import dplyr
-#' @importFrom tidyr pivot_longer unite
+#' @importFrom tidyr pivot_longer
 #' @importFrom tibble rownames_to_column
 #' @importFrom S4Vectors metadata
 
@@ -49,23 +49,15 @@ GetExpression <- function (
   } else {
     assertSubset(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
   }
+  assertCharacter(genes, any.missing = FALSE, unique = TRUE, null.ok = TRUE)
+  assertCharacter(group.subset, null.ok = TRUE)
   assertTRUE(assay.use %in% assayNames(object))
   assertFlag(quiet)
 
   # Active transcript and gene names
-  assertString(metadata(object)$active.transcript.id)
-  assertString(metadata(object)$active.gene.id)
-  active.transcript.id <- metadata(object)$active.transcript.id
-  active.gene.id <- metadata(object)$active.gene.id
-  assertChoice(active.gene.id, colnames(rowData(object)))
-  assertFALSE(anyMissing(rowData(object)[[active.gene.id]]))
-
-  if (metadata(object)$active.transcript.id != "") {
-    assertChoice(active.transcript.id, colnames(rowData(object)))
-    assertFALSE(any(duplicated(rowData(object)[[active.transcript.id]])))
-    assertFALSE(anyMissing(rowData(object)[[active.transcript.id]]))
-    rownames(object) <- rowData(object)[[active.transcript.id]]
-  }
+  active_ids <- .ActiveIds(object)
+  object <- active_ids$object
+  active.gene.id <- active_ids$active.gene.id
 
   gene.id.df <- rowData(object)[active.gene.id] %>%
     as.data.frame() %>%
@@ -73,35 +65,23 @@ GetExpression <- function (
     rename("gene_query" = all_of(active.gene.id))
 
   # Group structure
-  colData(object)$group_var <- colData(object) %>%
-    as.data.frame() %>%
-    unite("group_var", all_of(group.by), sep = "_", remove = FALSE) %>%
-    pull(group_var)
+  colData(object)$group_var <- .GroupVar(object, group.by)
   unique_groups <- unique(colData(object)$group_var)
   ## check group subset
   assertSubset(group.subset, unique_groups, empty.ok = TRUE)
   ## subset cells
   if (!is.null(group.subset)) {
-    object <- object[, colData(object)$group_var %in% group.subset]
+    object <- object[, colData(object)$group_var %in% group.subset, drop = FALSE]
   }
 
   # Transcripts provided
   if (is.null(genes)) {
 
-    ## transcript filter
-    if (any(transcripts %in% rownames(object))) {
-      missing_transcripts <- setdiff(transcripts, rownames(object))
-      if (length(missing_transcripts) > 0) {
-        if (!quiet) message("\u2139 Warning: The following transcripts were not found in the object: '", paste0(missing_transcripts, collapse = "', '"), "'.")
-        transcripts <- transcripts[transcripts %in% rownames(object)]
-      }
-    }
-    else {
-      stop("None of the transcripts provided were found in the object. (Check active.transcript.id?)")
-    }
+    transcript_filter <- .FilterTranscripts(object, transcripts, quiet = quiet)
+    object <- transcript_filter$object
+    transcripts <- transcript_filter$transcripts
 
     ## expression mat
-    object <- object[rownames(object) %in% transcripts, , drop = FALSE]
     expr_mat <- assay(object, assay.use)
     ## calculate tx counts, avg expr, and pct per group
     col_group <- colData(object)[["group_var"]]
@@ -127,8 +107,10 @@ GetExpression <- function (
       left_join(., gene.id.df, by = "transcripts_query", relationship = "many-to-many") %>%
       select(group, gene_query, transcripts_query, pct, avgExpr) %>%
       arrange(group, transcripts_query) %>%
-      rename("gene" = "gene_query",
-                    "transcript" = "transcripts_query") %>%
+      rename(
+        "gene" = "gene_query",
+        "transcript" = "transcripts_query"
+      ) %>%
       as.data.frame()
 
     return(result)
@@ -138,62 +120,43 @@ GetExpression <- function (
   # Genes provided
   else {
 
-    ## active gene names
-    assertString(metadata(object)$active.gene.id)
-    active.gene.id <- metadata(object)$active.gene.id
-    assertChoice(active.gene.id, colnames(rowData(object)))
-    assertFALSE(anyMissing(rowData(object)[[active.gene.id]]))
+    gene_filter <- .FilterGenes(object, genes, active.gene.id, quiet = quiet)
+    object <- gene_filter$object
+    genes <- gene_filter$genes
 
-    ## gene filter
-    if (any(genes %in% unique(rowData(object)[[active.gene.id]]))) {
-      missing_genes <- setdiff(genes, unique(rowData(object)[[active.gene.id]]))
-      if (length(missing_genes) == length(genes)) {
-        stop("None of the genes were found in the object. (Check active.gene.id?)")
-      }
-      if (length(missing_genes) > 0) {
-        if (!quiet) message("\u2139 Warning: The following genes were not found in the object: '", paste0(missing_genes, collapse = "', '"), "'.")
-        genes <- genes[genes %in% unique(rowData(object)[[active.gene.id]])]
-      }
+    ## expression mat
+    expr_mat <- assay(object, assay.use)
+    ## calculate tx counts, avg expr, and pct per group
+    col_group <- colData(object)[["group_var"]]
+    n_cells_grp <- table(col_group)
+    grp_tx_cts <- t(rowsum(t(expr_mat), group = col_group))
+    grp_tx_avg <- sweep(grp_tx_cts, 2, n_cells_grp, FUN = "/")
+    grp_tx_pos_cts <- t(rowsum(t(expr_mat > 0) * 1, group = col_group))
+    grp_tx_pct <- sweep(grp_tx_pos_cts, 2, n_cells_grp, FUN = "/")
 
-      ## expression mat
-      object <- object[rowData(object)[[active.gene.id]] %in% genes, , drop = FALSE]
-      expr_mat <- assay(object, assay.use)
-      ## calculate tx counts, avg expr, and pct per group
-      col_group <- colData(object)[["group_var"]]
-      n_cells_grp <- table(col_group)
-      grp_tx_cts <- t(rowsum(t(expr_mat), group = col_group))
-      grp_tx_avg <- sweep(grp_tx_cts, 2, n_cells_grp, FUN = "/")
-      grp_tx_pos_cts <- t(rowsum(t(expr_mat > 0) * 1, group = col_group))
-      grp_tx_pct <- sweep(grp_tx_pos_cts, 2, n_cells_grp, FUN = "/")
+    ## output
+    grp_tx_avg <- grp_tx_avg %>%
+      as.data.frame() %>%
+      rownames_to_column(var = "transcripts_query") %>%
+      pivot_longer(-transcripts_query, names_to = "group", values_to = "avgExpr")
+    grp_tx_pct <- grp_tx_pct %>%
+      as.data.frame() %>%
+      rownames_to_column(var = "transcripts_query") %>%
+      pivot_longer(-transcripts_query, names_to = "group", values_to = "pct")
 
-      ## output
-      grp_tx_avg <- grp_tx_avg %>%
-        as.data.frame() %>%
-        rownames_to_column(var = "transcripts_query") %>%
-        pivot_longer(-transcripts_query, names_to = "group", values_to = "avgExpr")
-      grp_tx_pct <- grp_tx_pct %>%
-        as.data.frame() %>%
-        rownames_to_column(var = "transcripts_query") %>%
-        pivot_longer(-transcripts_query, names_to = "group", values_to = "pct")
+    result <- full_join(grp_tx_avg, grp_tx_pct, by = c("group", "transcripts_query"))
 
-      result <- full_join(grp_tx_avg, grp_tx_pct, by = c("group", "transcripts_query"))
+    result <- result %>%
+      left_join(., gene.id.df, by = "transcripts_query", relationship = "many-to-many") %>%
+      select(group, gene_query, transcripts_query, pct, avgExpr) %>%
+      arrange(group, transcripts_query) %>%
+      rename(
+        "gene" = "gene_query",
+        "transcript" = "transcripts_query"
+        ) %>%
+      as.data.frame()
 
-      result <- result %>%
-        left_join(., gene.id.df, by = "transcripts_query", relationship = "many-to-many") %>%
-        select(group, gene_query, transcripts_query, pct, avgExpr) %>%
-        arrange(group, transcripts_query) %>%
-        rename(
-          "gene" = "gene_query",
-          "transcript" = "transcripts_query",
-          "transcript.pct" = "pct"
-          ) %>%
-        as.data.frame()
-
-      return(result)
-
-    } else {
-      stop("None of the genes were found in the object. (Check active.gene.id?)")
-    }
+    return(result)
 
   }
 

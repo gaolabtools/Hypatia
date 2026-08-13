@@ -24,29 +24,29 @@ RunDIU(
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{group.by}{Name of \code{colData} variable to group cells for comparisons. If \code{NULL}, \code{metadata(object)$active.group.id} will be used.}
+\item{group.by}{One or more \code{colData} column names used to define cell groups. If \code{NULL}, \code{metadata(object)$active.group.id} is used.}
 
-\item{group.1}{First group in the comparison.}
+\item{group.1}{Group label(s) for the first side of the comparison. If \code{NULL}, each group is compared against all others.}
 
-\item{group.2}{Second group in the comparison.}
+\item{group.2}{Optional group label(s) for the second side of the comparison. If \code{NULL}, \code{group.1} is compared against all other cells.}
 
-\item{assay.use}{Which \code{assay} (counts) to use.}
+\item{assay.use}{Assay name to use.}
 
-\item{method.use}{Statistical test, either "Chisq" for Chi-squared test or "Fisher" for Fisher's exact test.}
+\item{method.use}{Statistical test: \code{"Chisq"} or \code{"Fisher"}.}
 
-\item{min.gene.pct}{Minimum percentage of cells in which a gene must be expressed in both groups for it to be tested.}
+\item{min.gene.pct}{Minimum fraction of cells in each group where the gene must be detected.}
 
-\item{min.gene.cts}{Minimum total transcript counts in which a gene must have in both groups for it be tested.}
+\item{min.gene.cts}{Minimum total gene counts required in each group.}
 
 \item{min.tx.cts}{Minimum transcript counts required for a transcript to be included in contingency tables.}
 
-\item{genes}{Vector of genes to test. Note: genes will still be subject to filtering.}
+\item{genes}{Optional vector of active gene IDs to test. Genes are still subject to filtering.}
 
 \item{only.valid}{Logical; if \code{TRUE}, only tests with valid Chi-square approximations will be reported and corrected for multiple testing.}
 
 \item{simulate.p}{Logical; if \code{TRUE}, p-values are computed using a Monte Carlo simulation. Note: Fisher's exact test always uses simulation.}
 
-\item{p.adj}{Method for p-value adjustment. Options are \code{"BH"} (Benjamini-Hochberg) or \code{"Bonferroni"}.}
+\item{p.adj}{P-value adjustment method. Must be one of \code{stats::p.adjust.methods}.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
 }
@@ -66,7 +66,7 @@ A data frame of summarized data with columns:
 \item{\code{cts.2}}{Total counts of the transcript across all cells in \code{group.2}.}
 \item{\code{prop.1}}{Transcript proportion for \code{group.1}.}
 \item{\code{prop.2}}{Transcript proportion for \code{group.2}.}
-\item{\code{delta}}{The difference in transcript proportions between groups (\code{group.1} - \code{group.2}).}
+\item{\code{prop.diff}}{The difference in transcript proportions between groups (\code{group.1} - \code{group.2}).}
 }
 }
 
@@ -75,9 +75,10 @@ A data frame containing statistical results with columns:
 \describe{
 \item{\code{group.1} & \code{group.2}}{The two cell groups being compared.}
 \item{\code{gene}}{The gene being tested.}
-\item{\code{max.delta}}{The largest absolute difference in transcript proportions between \code{group.1} and \code{group.2}.}
-\item{\code{transcript}}{The transcript associated with \code{max.delta}.}
-\item{\code{pval}}{P-value from the statistical test specified in \code{method.use} (default: Chi-square test).}
+\item{\code{max.prop.diff}}{The largest absolute difference in transcript proportions between \code{group.1} and \code{group.2}.}
+\item{\code{transcript}}{The transcript associated with \code{max.prop.diff}.}
+\item{\code{pval}}{P-value from the selected statistical test.}
+\item{\code{padj}}{Adjusted p-value.}
 \item{\code{effect.size}}{Effect size of the test, measured as Cramer's V.}
 \item{\code{approx}}{Indicates whether the Chi-square approximation is valid ("valid") or potentially unreliable ("warning"), based on whether at least 80\% of transcript counts of the contingency table exceed 5.}
 }
@@ -85,6 +86,5 @@ A data frame containing statistical results with columns:
 }
 }
 \description{
-Runs differential isoform usage analysis.
-For each comparison, genes are first filtered according to coverage, counts are aggregated across groups, then the Chi-square or Fisher's exact test is applied.
+Tests genes for differential isoform usage between cell groups.
 }

@@ -16,5 +16,7 @@ test_that("PlotCellQC outputs QC metrics", {
 
   expect_class(p, "patchwork")
   expect_class(p_list, "list")
+  expect_equal(p_list$scatter$labels$x, "nCount")
+  expect_equal(p_list$scatter$labels$y, "nTranscript")
 
 })
