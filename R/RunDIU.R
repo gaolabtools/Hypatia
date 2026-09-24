@@ -7,13 +7,26 @@
 #' @param group.1 Group label(s) for the first side of the comparison. If `NULL`, each group is compared against all others.
 #' @param group.2 Optional group label(s) for the second side of the comparison. If `NULL`, `group.1` is compared against all other cells.
 #' @param assay.use Assay name to use.
-#' @param method.use Statistical test: `"Chisq"` or `"Fisher"`.
+#' @param method.use Statistical test: uncorrected Pearson Chi-square (`"Chisq"`)
+#'   or Fisher's exact test (`"Fisher"`).
 #' @param min.gene.pct Minimum fraction of cells in each group where the gene must be detected.
 #' @param min.gene.cts Minimum total gene counts required in each group.
-#' @param min.tx.cts Minimum transcript counts required for inclusion in contingency tables.
+#' @param min.tx.cts Minimum total transcript counts in at least one comparison group for inclusion in contingency tables.
 #' @param genes Optional vector of active gene IDs to test. Genes are still subject to filtering.
 #' @param only.valid Logical; if `TRUE`, report only genes with valid Chi-square approximations.
-#' @param simulate.p Logical; if `TRUE`, use Monte Carlo p-values. Fisher's exact test always uses simulation.
+#' @param simulate.p Logical; if `TRUE`, request Monte Carlo p-values. Fisher's test always requests simulation, which `stats::fisher.test()` uses for tables larger than 2 by 2.
+#' @param permutation Logical; if `TRUE`, calculate empirical p-values by permuting cell labels while preserving comparison-group sizes.
+#' @param perm.iter Number of cell-label permutations used to construct the empirical null distribution.
+#' @param perm.statistics Character vector of gene-level statistics to evaluate
+#'   for each cell-label permutation. Options are the uncorrected Pearson
+#'   Chi-square statistic (`"chisq"`) and the maximum absolute transcript
+#'   proportion difference (`"max_delta"`).
+#' @param cell.dispersion Logical; if `TRUE`, summarize cell-to-cell transcript proportion dispersion among cells with positive retained-gene counts.
+#' @param bootstrap Logical; if `TRUE`, bootstrap cells within each comparison group to estimate uncertainty in transcript proportion differences.
+#' @param boot.iter Number of bootstrap iterations.
+#' @param boot.fraction Proportion of cells sampled from each comparison group per bootstrap iteration.
+#' @param boot.ncells Optional fixed number of cell draws sampled with replacement from each comparison group per bootstrap iteration. Cannot be supplied together with `boot.fraction`.
+#' @param boot.conf Confidence level for percentile bootstrap intervals.
 #' @param p.adj P-value adjustment method. Must be one of `stats::p.adjust.methods`.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
@@ -25,15 +38,20 @@
 #'     \describe{
 #'       \item{`group.1` & `group.2`}{The two cell groups being compared.}
 #'       \item{`gene`}{The gene being tested.}
-#'       \item{`gene.pct.1`}{Percentage of cells in `group.1` with expression of the gene.}
-#'       \item{`gene.pct.2`}{Percentage of cells in `group.2` with expression of the gene.}
+#'       \item{`gene.pct.1`}{Fraction of cells in `group.1` with expression of the gene, on the `[0, 1]` scale.}
+#'       \item{`gene.pct.2`}{Fraction of cells in `group.2` with expression of the gene, on the `[0, 1]` scale.}
 #'       \item{`transcript`}{The associated transcript.}
 #'       \item{`cts.1`}{Total counts of the transcript across all cells in `group.1`.}
 #'       \item{`cts.2`}{Total counts of the transcript across all cells in `group.2`.}
 #'       \item{`prop.1`}{Transcript proportion for `group.1`.}
 #'       \item{`prop.2`}{Transcript proportion for `group.2`.}
 #'       \item{`prop.diff`}{The difference in transcript proportions between groups (`group.1` - `group.2`).}
+#'       \item{`cell.n.1`, `cell.n.2`}{Number of gene-positive cells used for cell-level summaries in each group.}
+#'       \item{`cell.prop.mean.1`, `cell.prop.mean.2`, `cell.prop.median.1`, `cell.prop.median.2`, `cell.prop.sd.1`, `cell.prop.sd.2`, `cell.prop.iqr.1`, `cell.prop.iqr.2`}{Mean, median, sample standard deviation, and interquartile range of cell-level transcript proportions.}
+#'       \item{`cell.prop.zero.frac.1`, `cell.prop.zero.frac.2`}{Fraction of gene-positive cells in which the transcript is not detected.}
+#'       \item{`boot.prop.1`, `boot.prop.2`, `boot.prop.diff`}{List-columns containing bootstrap proportions and differences. Each entry is an empty numeric vector when `bootstrap = FALSE`.}
 #'     }
+#'     Cell-dispersion columns are present as typed `NA` values when `cell.dispersion = FALSE`.
 #'   }
 #'
 #'   \item{`$stats`}{
@@ -41,15 +59,66 @@
 #'     \describe{
 #'       \item{`group.1` & `group.2`}{The two cell groups being compared.}
 #'       \item{`gene`}{The gene being tested.}
-#'       \item{`max.prop.diff`}{The largest absolute difference in transcript proportions between `group.1` and `group.2`.}
+#'       \item{`max.prop.diff`}{The signed transcript-proportion difference (`group.1` - `group.2`) for the transcript with the greatest absolute difference.}
 #'       \item{`transcript`}{The transcript associated with `max.prop.diff`.}
-#'       \item{`pval`}{P-value from the selected statistical test.}
-#'       \item{`padj`}{Adjusted p-value.}
-#'       \item{`effect.size`}{Effect size of the test, measured as Cramer's V.}
-#'       \item{`approx`}{Indicates whether the Chi-square approximation is valid ("valid") or potentially unreliable ("warning"), based on whether at least 80% of transcript counts of the contingency table exceed 5.}
+#'       \item{`pval`}{P-value from the selected statistical test. Chi-square
+#'       tests use the uncorrected Pearson statistic.}
+#'       \item{`padj`}{Adjusted p-value, calculated separately within each comparison (default: Benjamini-Hochberg).}
+#'       \item{`pval.perm`}{Empirical p-value from cell-label permutation using
+#'       the uncorrected Pearson Chi-square statistic. Values are `NA` when
+#'       `permutation = FALSE` or `"chisq"` is not requested.}
+#'       \item{`padj.perm`}{Adjusted empirical Chi-square permutation p-value.}
+#'       \item{`pval.perm.delta`}{Empirical gene-level p-value from cell-label
+#'       permutation using the maximum absolute transcript proportion difference.
+#'       Values are `NA` when `permutation = FALSE` or `"max_delta"` is not
+#'       requested.}
+#'       \item{`padj.perm.delta`}{Adjusted empirical maximum-delta permutation
+#'       p-value.}
+#'       \item{`cramers.v`}{Cramer's V calculated from the uncorrected Pearson
+#'       Chi-square statistic.}
+#'       \item{`approx`}{A count-based heuristic: `"valid"` when more than 80% of observed contingency-table counts exceed 5 and all are positive; `"warning"` otherwise. This does not check expected counts. `NA` for Fisher's test.}
+#'       \item{`boot.prop.diff.mean`, `boot.prop.diff.lower`, `boot.prop.diff.upper`}{Bootstrap mean and percentile confidence interval for the transcript associated with `max.prop.diff`. Values are `NA` when `bootstrap = FALSE`.}
+#'       \item{`boot.valid.iter`}{Number of finite bootstrap differences used for the summaries.}
 #'     }
 #'   }
 #' }
+#' Rows in `$data` are ordered by `group.1`, `group.2`, `gene`, and
+#' `transcript`. Rows in `$stats` are ordered by `group.1`, `group.2`,
+#' `padj`, `gene`, and `transcript`.
+#' @details Genes must meet `min.gene.pct` and `min.gene.cts` in both comparison
+#' groups. Transcripts are retained when their total counts meet `min.tx.cts`
+#' in either group, and a gene must retain at least two transcripts. Counts are
+#' pooled into a transcript-by-group contingency table for each gene.
+#'
+#' - `"Chisq"`: Pearson Chi-square testing without continuity correction.
+#'   `simulate.p = TRUE` requests Monte Carlo p-values. `only.valid = TRUE`
+#'   restricts testing to genes passing the observed-count heuristic reported
+#'   in `approx`.
+#' - `"Fisher"`: Fisher's test, requesting Monte Carlo p-values for tables
+#'   larger than 2 by 2. Two-by-two tables use the exact calculation.
+#'   `only.valid` is not applied with this method.
+#'
+#' With `permutation = TRUE`, cell labels are shuffled within each comparison
+#' while preserving group sizes and the retained transcript set. `perm.statistics`
+#' selects the Pearson Chi-square statistic, the maximum absolute transcript
+#' proportion difference, or both. Permutation p-values are returned separately
+#' from the selected contingency-table test's p-values.
+#'
+#' With `bootstrap = TRUE`, cells are sampled with replacement within each
+#' group. Each iteration draws `ceiling(boot.fraction * ncol(group))` cells,
+#' or `boot.ncells` when supplied. Percentile intervals summarize the transcript
+#' with the largest observed absolute proportion difference; `max.prop.diff`
+#' retains its sign. Optional `cell.dispersion` summaries describe proportions
+#' among cells with positive retained-gene counts, separately from bootstrapping.
+#'
+#' Multiple `group.by` columns are joined with `_`. Omitting both comparison
+#' arguments compares each group with the remaining cells; exactly two groups
+#' produce one comparison. Multiple labels in `group.1` or `group.2` pool cells
+#' on that side. P-values are adjusted separately within each comparison and
+#' each test family, using Benjamini-Hochberg by default. Call `set.seed()` for
+#' reproducible resampling results; no seed is set internally. An error is
+#' returned if no genes pass filtering across all comparisons.
+#' @seealso [GetUsage()], [PlotUsage()]
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment
@@ -72,9 +141,18 @@ RunDIU <- function(
     min.tx.cts = 1,
     genes = NULL,
     only.valid = FALSE, # if TRUE and method.use is Chisq, removes genes that do not meet sample size for adequate approximation
-    simulate.p = FALSE, # Fisher's tests will always be simulated with Monte Carlo
+    simulate.p = FALSE, # Fisher's tests request Monte Carlo for tables larger than 2 by 2
+    permutation = FALSE,
+    perm.iter = 1000,
+    perm.statistics = c("chisq", "max_delta"),
+    bootstrap = TRUE,
+    boot.iter = 100,
+    boot.fraction = 0.6,
+    boot.ncells = NULL,
+    boot.conf = 0.95,
     p.adj = "BH",
-    quiet = FALSE
+    quiet = FALSE,
+    cell.dispersion = FALSE
 ) {
 
   # Check inputs
@@ -97,6 +175,23 @@ RunDIU <- function(
   assertCharacter(genes, unique = TRUE, null.ok = TRUE, any.missing = FALSE)
   assertFlag(only.valid)
   assertFlag(simulate.p)
+  assertFlag(permutation)
+  assertCount(perm.iter, positive = TRUE)
+  assertCharacter(perm.statistics, min.len = 1, unique = TRUE, any.missing = FALSE)
+  assertSubset(perm.statistics, c("chisq", "max_delta"), empty.ok = FALSE)
+  assertFlag(cell.dispersion)
+  assertFlag(bootstrap)
+  assertCount(boot.iter, positive = TRUE)
+  boot.fraction.supplied <- !missing(boot.fraction)
+  assertNumber(boot.fraction, lower = 0.01, upper = 1, finite = TRUE)
+  assertCount(boot.ncells, positive = TRUE, null.ok = TRUE)
+  if (!is.null(boot.ncells) && boot.fraction.supplied) {
+    stop("Please provide only one of `boot.fraction` or `boot.ncells`.", call. = FALSE)
+  }
+  assertNumber(boot.conf, lower = 0, upper = 1, finite = TRUE)
+  if (boot.conf == 0 || boot.conf == 1) {
+    stop("`boot.conf` must be strictly between 0 and 1.", call. = FALSE)
+  }
   p.adj <- .PAdjustMethod(p.adj)
   assertFlag(quiet)
 
@@ -208,7 +303,7 @@ RunDIU <- function(
 
     ## number of tests to conduct
     n_tests <- length(unique(agg_cts_df$gene.id))
-    if (!quiet) message("  ", n_tests, " genes passed detection thresholds.")
+    if (!quiet) message("  ", n_tests, " genes passed filtering.")
 
     ## test sample size for Chisq approximation
     if (method.use == "Chisq") {
@@ -217,13 +312,6 @@ RunDIU <- function(
         mutate(approx = ifelse(mean(c(cts.1, cts.2) > 5) > 0.80 & all(c(cts.1, cts.2) > 0), "valid", "warning")) %>%
         ungroup()
 
-      warning_genes <- agg_cts_df %>%
-        filter(approx == "warning") %>%
-        pull(gene.id) %>%
-        unique()
-
-      if (!quiet && length(warning_genes) > 0) message("  \u2139 Warning: ", length(warning_genes), " genes with inadequate sample size for Chisq approximation.")
-
       if (only.valid) {
         if (!quiet) message("  \u2139 `only.valid` is set to TRUE. Only genes with valid approximations will be considered.")
         agg_cts_df <- agg_cts_df %>%
@@ -231,7 +319,7 @@ RunDIU <- function(
       }
     } else if (method.use == "Fisher") {
       agg_cts_df <- agg_cts_df %>%
-        mutate(approx = NA)
+        mutate(approx = NA_character_)
     }
 
     ## number of tests to conduct after sample size assessment
@@ -249,6 +337,244 @@ RunDIU <- function(
              dprop = prop.1 - prop.2) %>%
       ungroup()
 
+    ## test statistics
+    if (method.use == "Chisq") {
+      if (!quiet && simulate.p) message("\u2139 p-values from Chi-square tests will be approximated by Monte Carlo simulation.")
+      diu_stats <- diu_data %>%
+        group_by(gene.id) %>%
+        mutate(test_stats = list(suppressWarnings(chisq.test(matrix(c(cts.1, cts.2), ncol = 2, byrow = FALSE), correct = FALSE, simulate.p.value = simulate.p))),
+               pval = test_stats[[1]]$p.value,
+               cramers.v = sqrt(test_stats[[1]]$statistic / (sum(cts.1, cts.2) * 1))) %>%
+        ungroup()
+    } else if (method.use == "Fisher") {
+      if (simulate.p == FALSE) {
+        simulate.p <- TRUE
+        if (!quiet) message("\u2139 p-values from Fisher's exact tests will be approximated by Monte Carlo simulation.")
+      }
+      diu_stats <- diu_data %>%
+        group_by(gene.id) %>%
+        mutate(test_stats = list(suppressWarnings(fisher.test(matrix(c(cts.1, cts.2), ncol = 2, byrow = FALSE), simulate.p.value = TRUE))),
+               pval = test_stats[[1]]$p.value,
+               chisq_stat = suppressWarnings(chisq.test(matrix(c(cts.1, cts.2), ncol = 2, byrow = FALSE), correct = FALSE)$statistic),
+               cramers.v = sqrt(chisq_stat / (sum(cts.1, cts.2) * 1))) %>%
+        ungroup()
+    }
+
+    ## Cell-label permutation p-values. The observed filtering and transcript
+    ## features are fixed; only cell labels are permuted within each comparison.
+    if (permutation) {
+      if (!quiet) message("  Performing cell-label permutations (", perm.iter, " iterations)...")
+
+      perm_transcripts <- diu_data$transcript
+      perm_object <- object[, c(colnames(object_grp1), colnames(object_grp2)), drop = FALSE]
+      perm_expr <- assay(perm_object[perm_transcripts, , drop = FALSE], assay.use)
+      perm_gene_ids <- rowData(perm_object[perm_transcripts, , drop = FALSE])[[active.gene.id]]
+      perm_grp1_ncells <- ncol(object_grp1)
+      perm_gene_ids_unique <- unique(perm_gene_ids)
+      perm_gene_factor <- factor(perm_gene_ids, levels = perm_gene_ids_unique)
+      perm_total_tx <- rowSums(perm_expr)
+      perm_total_gene <- as.numeric(rowsum(perm_total_tx, perm_gene_factor))
+
+      permutation_statistics <- function(grp1_idx) {
+        tx_grp1 <- rowSums(perm_expr[, grp1_idx, drop = FALSE])
+        gene_grp1 <- as.numeric(rowsum(tx_grp1, perm_gene_factor))
+        gene_grp2 <- perm_total_gene - gene_grp1
+        tx_grp2 <- perm_total_tx - tx_grp1
+
+        statistics <- list()
+
+        if ("chisq" %in% perm.statistics) {
+          expected_grp1 <- perm_total_tx * gene_grp1[perm_gene_factor] /
+            perm_total_gene[perm_gene_factor]
+          expected_grp2 <- perm_total_tx * gene_grp2[perm_gene_factor] /
+            perm_total_gene[perm_gene_factor]
+          valid <- expected_grp1 > 0 & expected_grp2 > 0
+          contribution <- rep(NA_real_, length(tx_grp1))
+          contribution[valid] <- (tx_grp1[valid] - expected_grp1[valid])^2 /
+            expected_grp1[valid] +
+            (tx_grp2[valid] - expected_grp2[valid])^2 / expected_grp2[valid]
+          chisq_statistic <- rowsum(
+            contribution, perm_gene_factor, na.rm = FALSE
+          )[, 1]
+          names(chisq_statistic) <- perm_gene_ids_unique
+          statistics$chisq <- chisq_statistic
+        }
+
+        if ("max_delta" %in% perm.statistics) {
+          gene_total_grp1 <- gene_grp1[perm_gene_factor]
+          gene_total_grp2 <- gene_grp2[perm_gene_factor]
+          prop_diff <- tx_grp1 / gene_total_grp1 - tx_grp2 / gene_total_grp2
+          max_delta_statistic <- vapply(
+            split(abs(prop_diff), perm_gene_factor),
+            max,
+            numeric(1)
+          )
+          statistics$max_delta <- max_delta_statistic[perm_gene_ids_unique]
+        }
+
+        statistics
+      }
+
+      observed_perm_stats <- permutation_statistics(seq_len(perm_grp1_ncells))
+      null_stats <- lapply(perm.statistics, function(statistic) {
+        matrix(
+          NA_real_,
+          nrow = length(perm_gene_ids_unique),
+          ncol = perm.iter,
+          dimnames = list(perm_gene_ids_unique, NULL)
+        )
+      })
+      names(null_stats) <- perm.statistics
+      for (iter in seq_len(perm.iter)) {
+        permuted_idx <- sample.int(ncol(perm_expr))
+        perm_grp1_idx <- permuted_idx[seq_len(perm_grp1_ncells)]
+        iter_stats <- permutation_statistics(perm_grp1_idx)
+        for (statistic in perm.statistics) {
+          null_stats[[statistic]][, iter] <- iter_stats[[statistic]]
+        }
+      }
+
+      perm_pvals <- lapply(perm.statistics, function(statistic) {
+        observed_stats <- observed_perm_stats[[statistic]]
+        pvals <- vapply(seq_along(observed_stats), function(i) {
+          observed <- observed_stats[[i]]
+          null <- null_stats[[statistic]][i, ]
+          if (!is.finite(observed)) return(NA_real_)
+          null <- null[is.finite(null)]
+          (1 + sum(null >= observed)) / (1 + perm.iter)
+        }, numeric(1))
+        names(pvals) <- perm_gene_ids_unique
+        pvals
+      })
+      names(perm_pvals) <- perm.statistics
+    } else {
+      perm_pvals <- NULL
+    }
+
+    ## adjusted pval
+    diu_stats <- diu_stats %>%
+      group_by(gene.id) %>%
+      slice_max(order_by = abs(dprop), with_ties = FALSE) %>%
+      ungroup() %>%
+      select(gene.id, dprop, transcript, pval, cramers.v, approx) %>%
+      mutate(
+        padj = p.adjust(pval, method = p.adj),
+        pval.perm = if (permutation && "chisq" %in% perm.statistics) {
+          unname(perm_pvals$chisq[gene.id])
+        } else {
+          NA_real_
+        },
+        padj.perm = if (permutation && "chisq" %in% perm.statistics) {
+          p.adjust(pval.perm, method = p.adj)
+        } else {
+          NA_real_
+        },
+        pval.perm.delta = if (permutation && "max_delta" %in% perm.statistics) {
+          unname(perm_pvals$max_delta[gene.id])
+        } else {
+          NA_real_
+        },
+        padj.perm.delta = if (permutation && "max_delta" %in% perm.statistics) {
+          p.adjust(.data$pval.perm.delta, method = p.adj)
+        } else {
+          NA_real_
+        }
+      )
+
+    ## bootstrap transcript proportions
+    if (bootstrap) {
+      if (!quiet) message("  Performing bootstrap sampling...")
+
+      boot_transcripts <- diu_data$transcript
+      boot_expr_mat_grp1 <- assay(object_grp1[boot_transcripts, , drop = FALSE], assay.use)
+      boot_expr_mat_grp2 <- assay(object_grp2[boot_transcripts, , drop = FALSE], assay.use)
+      boot_gene_ids <- rowData(object_grp1[boot_transcripts, , drop = FALSE])[[active.gene.id]]
+
+      if (is.null(boot.ncells)) {
+        grp1_boot_ncells <- ceiling(ncol(boot_expr_mat_grp1) * boot.fraction)
+        grp2_boot_ncells <- ceiling(ncol(boot_expr_mat_grp2) * boot.fraction)
+      } else {
+        grp1_boot_ncells <- boot.ncells
+        grp2_boot_ncells <- boot.ncells
+      }
+
+      boot_result <- replicate(boot.iter, {
+        grp1_col_idx <- sample(
+          seq_len(ncol(boot_expr_mat_grp1)),
+          size = grp1_boot_ncells,
+          replace = TRUE
+        )
+        grp2_col_idx <- sample(
+          seq_len(ncol(boot_expr_mat_grp2)),
+          size = grp2_boot_ncells,
+          replace = TRUE
+        )
+
+        data.frame(
+          gene.id = boot_gene_ids,
+          prop.1 = rowSums(boot_expr_mat_grp1[, grp1_col_idx, drop = FALSE]),
+          prop.2 = rowSums(boot_expr_mat_grp2[, grp2_col_idx, drop = FALSE])
+        ) %>%
+          group_by(gene.id) %>%
+          mutate(
+            prop.1 = prop.1 / sum(prop.1),
+            prop.2 = prop.2 / sum(prop.2),
+            prop.diff = prop.1 - prop.2
+          ) %>%
+          ungroup()
+      }, simplify = FALSE)
+
+      boot_prop_1 <- do.call(cbind, lapply(boot_result, `[[`, "prop.1"))
+      boot_prop_2 <- do.call(cbind, lapply(boot_result, `[[`, "prop.2"))
+      boot_prop_diff <- do.call(cbind, lapply(boot_result, `[[`, "prop.diff"))
+
+      boot_data <- data.frame(transcript = boot_transcripts)
+      boot_data$boot.prop.1 <- lapply(seq_along(boot_transcripts), function(i) boot_prop_1[i, ])
+      boot_data$boot.prop.2 <- lapply(seq_along(boot_transcripts), function(i) boot_prop_2[i, ])
+      boot_data$boot.prop.diff <- lapply(seq_along(boot_transcripts), function(i) boot_prop_diff[i, ])
+    } else {
+      boot_data <- data.frame(transcript = diu_data$transcript)
+      boot_data$boot.prop.1 <- rep(list(numeric(0)), nrow(boot_data))
+      boot_data$boot.prop.2 <- rep(list(numeric(0)), nrow(boot_data))
+      boot_data$boot.prop.diff <- rep(list(numeric(0)), nrow(boot_data))
+    }
+
+    ## cell-to-cell transcript proportion dispersion
+    dispersion_transcripts <- diu_data$transcript
+    if (cell.dispersion) {
+      if (!quiet) message("  Calculating cell-to-cell dispersion...")
+      dispersion_object_grp1 <- object_grp1[dispersion_transcripts, , drop = FALSE]
+      dispersion_object_grp2 <- object_grp2[dispersion_transcripts, , drop = FALSE]
+      dispersion_gene_ids <- rowData(dispersion_object_grp1)[[active.gene.id]]
+      dispersion_data_grp1 <- .CellUsageDispersion(
+        assay(dispersion_object_grp1, assay.use), dispersion_gene_ids
+      )
+      dispersion_data_grp2 <- .CellUsageDispersion(
+        assay(dispersion_object_grp2, assay.use), dispersion_gene_ids
+      )
+      names(dispersion_data_grp1)[-1] <- paste0(names(dispersion_data_grp1)[-1], ".1")
+      names(dispersion_data_grp2)[-1] <- paste0(names(dispersion_data_grp2)[-1], ".2")
+      dispersion_data <- left_join(
+        dispersion_data_grp1, dispersion_data_grp2, by = "transcript"
+      )
+    } else {
+      dispersion_data <- data.frame(
+        transcript = dispersion_transcripts,
+        cell.n.1 = rep(NA_integer_, length(dispersion_transcripts)),
+        cell.prop.mean.1 = rep(NA_real_, length(dispersion_transcripts)),
+        cell.prop.median.1 = rep(NA_real_, length(dispersion_transcripts)),
+        cell.prop.sd.1 = rep(NA_real_, length(dispersion_transcripts)),
+        cell.prop.iqr.1 = rep(NA_real_, length(dispersion_transcripts)),
+        cell.prop.zero.frac.1 = rep(NA_real_, length(dispersion_transcripts)),
+        cell.n.2 = rep(NA_integer_, length(dispersion_transcripts)),
+        cell.prop.mean.2 = rep(NA_real_, length(dispersion_transcripts)),
+        cell.prop.median.2 = rep(NA_real_, length(dispersion_transcripts)),
+        cell.prop.sd.2 = rep(NA_real_, length(dispersion_transcripts)),
+        cell.prop.iqr.2 = rep(NA_real_, length(dispersion_transcripts)),
+        cell.prop.zero.frac.2 = rep(NA_real_, length(dispersion_transcripts))
+      )
+    }
+
     ## update list
     data_list[[comp]] <- diu_data %>%
       mutate(grp.1 = group.1,
@@ -265,38 +591,34 @@ RunDIU <- function(
                     "prop.1" = prop.1,
                     "prop.2" = prop.2,
                     "prop.diff" = dprop) %>%
+      left_join(boot_data, by = "transcript") %>%
+      left_join(dispersion_data, by = "transcript") %>%
       arrange(group.1, gene)
 
-    ## test statistics
-    if (method.use == "Chisq") {
-      if (!quiet && simulate.p) message("\u2139 p-values from Chi-square tests will be approximated by Monte Carlo simulation.")
-      diu_stats <- diu_data %>%
-        group_by(gene.id) %>%
-        mutate(test_stats = list(suppressWarnings(chisq.test(matrix(c(cts.1, cts.2), ncol = 2, byrow = FALSE), simulate.p.value = simulate.p))),
-               pval = test_stats[[1]]$p.value,
-               effect.size = sqrt(test_stats[[1]]$statistic / (sum(cts.1, cts.2) * 1))) %>%
-        ungroup()
-    } else if (method.use == "Fisher") {
-      if (simulate.p == FALSE) {
-        simulate.p <- TRUE
-        if (!quiet) message("\u2139 p-values from Fisher's exact tests will be approximated by Monte Carlo simulation.")
-      }
-      diu_stats <- diu_data %>%
-        group_by(gene.id) %>%
-        mutate(test_stats = list(suppressWarnings(fisher.test(matrix(c(cts.1, cts.2), ncol = 2, byrow = FALSE), simulate.p.value = TRUE))),
-               pval = test_stats[[1]]$p.value,
-               chisq_stat = suppressWarnings(chisq.test(matrix(c(cts.1, cts.2), ncol = 2, byrow = FALSE), correct = FALSE)$statistic),
-               effect.size = sqrt(chisq_stat / (sum(cts.1, cts.2) * 1))) %>%
-        ungroup()
-    }
+    ## bootstrap summaries for the observed maximum-difference transcript
+    selected_boot_diff <- boot_data$boot.prop.diff[
+      match(diu_stats$transcript, boot_data$transcript)
+    ]
+    selected_boot_diff <- lapply(selected_boot_diff, function(x) x[is.finite(x)])
+    boot_valid_iter <- lengths(selected_boot_diff)
+    boot_prop_diff_mean <- vapply(selected_boot_diff, function(x) {
+      if (length(x) == 0) NA_real_ else mean(x)
+    }, numeric(1))
+    boot_alpha <- (1 - boot.conf) / 2
+    boot_prop_diff_lower <- vapply(selected_boot_diff, function(x) {
+      if (length(x) == 0) NA_real_ else unname(stats::quantile(x, probs = boot_alpha))
+    }, numeric(1))
+    boot_prop_diff_upper <- vapply(selected_boot_diff, function(x) {
+      if (length(x) == 0) NA_real_ else unname(stats::quantile(x, probs = 1 - boot_alpha))
+    }, numeric(1))
 
-    ## adjusted pval
     diu_stats <- diu_stats %>%
-      group_by(gene.id) %>%
-      slice_max(order_by = abs(dprop), with_ties = FALSE) %>%
-      ungroup() %>%
-      select(gene.id, dprop, transcript, pval, effect.size, approx) %>%
-      mutate(padj = p.adjust(pval, method = p.adj))
+      mutate(
+        boot.prop.diff.mean = boot_prop_diff_mean,
+        boot.prop.diff.lower = boot_prop_diff_lower,
+        boot.prop.diff.upper = boot_prop_diff_upper,
+        boot.valid.iter = as.integer(boot_valid_iter)
+      )
 
     ## update list
     stats_list[[comp]] <- diu_stats %>%
@@ -307,14 +629,18 @@ RunDIU <- function(
                     "group.2" = grp.2,
                     "gene" = "gene.id",
                     "max.prop.diff" = "dprop") %>%
-      select(group.1, group.2, gene, max.prop.diff, transcript, pval, padj, effect.size, approx) %>%
+      select(group.1, group.2, gene, max.prop.diff, transcript, pval, padj,
+             pval.perm, padj.perm, "pval.perm.delta", "padj.perm.delta",
+             cramers.v, approx, boot.prop.diff.mean,
+             boot.prop.diff.lower, boot.prop.diff.upper, boot.valid.iter) %>%
       arrange(padj)
   }
 
   # Output
   return_list <- list()
   if (length(data_list) > 0) {
-    return_list$data <- as.data.frame(reduce(data_list, rbind))
+    return_list$data <- as.data.frame(reduce(data_list, rbind)) %>%
+      arrange(group.1, group.2, gene, transcript)
   } else {
     return_list$data <- data.frame("group.1" = character(),
                                    "group.2" = character(),
@@ -326,10 +652,26 @@ RunDIU <- function(
                                    "cts.2" = numeric(),
                                    "prop.1" = numeric(),
                                    "prop.2" = numeric(),
-                                   "prop.diff" = numeric())
+                                   "prop.diff" = numeric(),
+                                   "boot.prop.1" = I(list()),
+                                   "boot.prop.2" = I(list()),
+                                   "boot.prop.diff" = I(list()),
+                                   "cell.n.1" = integer(),
+                                   "cell.prop.mean.1" = numeric(),
+                                   "cell.prop.median.1" = numeric(),
+                                   "cell.prop.sd.1" = numeric(),
+                                   "cell.prop.iqr.1" = numeric(),
+                                   "cell.prop.zero.frac.1" = numeric(),
+                                   "cell.n.2" = integer(),
+                                   "cell.prop.mean.2" = numeric(),
+                                   "cell.prop.median.2" = numeric(),
+                                   "cell.prop.sd.2" = numeric(),
+                                   "cell.prop.iqr.2" = numeric(),
+                                   "cell.prop.zero.frac.2" = numeric())
   }
   if (length(stats_list) > 0) {
-    return_list$stats <- as.data.frame(reduce(stats_list, rbind))
+    return_list$stats <- as.data.frame(reduce(stats_list, rbind)) %>%
+      arrange(group.1, group.2, padj, gene, transcript)
   } else {
     return_list$stats <- data.frame("group.1" = character(),
                                     "group.2" = character(),
@@ -338,8 +680,16 @@ RunDIU <- function(
                                     "transcript" = character(),
                                     "pval" = numeric(),
                                     "padj" = numeric(),
-                                    "effect.size" = numeric(),
-                                    "approx" = character())
+                                    "pval.perm" = numeric(),
+                                    "padj.perm" = numeric(),
+                                    "pval.perm.delta" = numeric(),
+                                    "padj.perm.delta" = numeric(),
+                                    "cramers.v" = numeric(),
+                                    "approx" = character(),
+                                    "boot.prop.diff.mean" = numeric(),
+                                    "boot.prop.diff.lower" = numeric(),
+                                    "boot.prop.diff.upper" = numeric(),
+                                    "boot.valid.iter" = integer())
   }
 
   if (length(stats_list) == 0 && length(data_list) == 0) {

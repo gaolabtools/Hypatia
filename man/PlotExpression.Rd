@@ -38,7 +38,12 @@ PlotExpression(
 
 \item{plot.type}{Plot type: \code{"violin"}, \code{"reducedDim"}, or \code{"heatmap"}.}
 
-\item{colors}{A vector of colors to use for the plot.}
+\item{colors}{A vector of colors for cell groups (violin fills and heatmap
+annotations), optionally named by group label, or for the expression
+gradient in reduced-dimension plots. If \code{NULL}, cell groups use the shared
+categorical group palette: ten fixed colors, or the qualitative HCL
+\code{"Dark 3"} palette for more than ten groups. Reduced-dimension plots use a
+gray-to-red expression gradient.}
 
 \item{colors.heatmap}{A vector of colors for the heatmap color bar.}
 
@@ -67,4 +72,27 @@ A ggplot object.
 }
 \description{
 Plots transcript expression across cell groups or embeddings.
+}
+\details{
+The requested assay must already exist; the default is \code{"logcounts"}
+from \code{\link[=NormalizeCounts]{NormalizeCounts()}}. Transcript queries use active transcript IDs or
+object row names. Multiple \code{group.by} columns are joined with \verb{_}.
+\itemize{
+\item \code{"violin"}: Expression distributions by group with individual cells
+overlaid, faceted by transcript.
+\item \code{"reducedDim"}: Cells in the first two dimensions of the embedding named
+by \code{dim.use}, colored by expression and faceted by transcript. The embedding
+must already be stored in the object; this function does not calculate it.
+\item \code{"heatmap"}: Individual-cell expression across transcripts, with cells
+ordered by group and cell ID. By default, expression is centered and scaled
+to unit sample standard deviation separately for each transcript across
+plotted cells, then clipped to \verb{[-2, 2]}. Set \code{scale.heatmap = FALSE} to
+display values on the selected assay's original scale.
+}
+
+\code{group.subset} controls which cells are displayed and \code{group.order} controls
+group ordering. Plotting does not perform differential expression testing.
+}
+\seealso{
+\code{\link[=GetExpression]{GetExpression()}}, \code{\link[=RunDEI]{RunDEI()}}
 }

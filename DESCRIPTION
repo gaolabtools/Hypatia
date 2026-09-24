@@ -1,20 +1,26 @@
 Package: Hypatia
-Title: Single-cell Isoform Analysis
-Version: 1.2.0
+Title: Single-Cell Isoform Analysis
+Version: 1.3.0
 Authors@R: 
     person("Timothy", "Pan", , "timothy.pan@northwestern.edu", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Description: Comparative analysis of transcript isoforms in long-read
+    single-cell RNA-sequencing data using SingleCellExperiment objects.
+    Provides differential isoform usage, diversity, and expression analyses,
+    together with count normalization, quality control, summary statistics,
+    and visualization across cell populations.
 License: file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
-URL: https://github.com/pan-ty/Hypatia
-BugReports: https://github.com/pan-ty/Hypatia/issues
+URL: https://github.com/gaolabtools/Hypatia,
+    https://gaolabtools.github.io/Hypatia/vignettes/Hypatia.html
+BugReports: https://github.com/gaolabtools/Hypatia/issues
 Imports: 
-    checkmate,
+    checkmate (>= 1.9.0),
     dplyr (>= 1.0.0),
     ggnewscale,
-    ggplot2,
+    ggplot2 (>= 3.5.0),
+    GenomicRanges,
     Matrix,
     patchwork,
     tibble,
@@ -23,19 +29,19 @@ Imports:
     methods,
     purrr,
     S4Vectors,
-    SingleCellExperiment,
+    SingleCellExperiment (>= 1.14.0),
     SummarizedExperiment,
-    tidyr,
-    matrixTests
+    tidyr (>= 1.0.0),
+    matrixTests (>= 0.1.3)
 Remotes:
+    bioc::GenomicRanges,
     bioc::S4Vectors,
     bioc::SummarizedExperiment,
     bioc::SingleCellExperiment
 Suggests: 
     knitr,
-    quarto,
-    rmarkdown,
-    testthat (>= 3.0.0)
+    quarto (>= 1.4.0),
+    testthat (>= 3.1.5)
 Config/testthat/edition: 3
 Depends: 
     R (>= 4.1)

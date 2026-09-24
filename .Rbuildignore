@@ -2,3 +2,6 @@
 ^\.Rproj\.user$
 ^vignettes/Hypatia\.html$
 ^vignettes/.*_files$
+^publication$
+^AGENTS\.md$
+^tests/testthat/Rplots\.pdf$

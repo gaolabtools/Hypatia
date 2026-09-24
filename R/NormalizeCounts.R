@@ -5,11 +5,33 @@
 #' @param object A `SingleCellExperiment` object.
 #' @param method.use Normalization method: `"LogNormalize"`, `"TPM"`, or `"FT"`. Creates or overwrites `"logcounts"`, `"tpmcounts"`, or `"ftcounts"`, respectively.
 #' @param scale.factor Scale factor for `"LogNormalize"` and `"FT"`.
-#' @param gtf Optional `GRanges` object with transcript ranges for TPM normalization.
-#' @param gtf.transcript.id Metadata column in `gtf` containing transcript IDs matching `rownames(object)`.
+#' @param gtf Optional `GRanges` object with exon annotations for TPM normalization, as described in [CreateSCE()]. Replaces the stored GTF and transcript exon ranges when supplied for TPM.
+#' @param gtf.transcript.id Metadata column in `gtf` containing transcript IDs matching `rownames(object)`. If `NULL`, uses `metadata(object)$gtf.transcript.id` when available.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns The input object with the selected normalized assay added.
+#' @details
+#' - `"LogNormalize"`: Divides counts by the total counts in each cell,
+#'   multiplies by `scale.factor`, and applies `log1p()` (natural logarithm).
+#'   Results are stored in `"logcounts"`.
+#' - `"TPM"`: Divides counts by spliced transcript lengths in kilobases, then scales
+#'   the length-adjusted counts to total one million per nonempty cell.
+#'   Cells with zero total counts remain zero. Results are stored in
+#'   `"tpmcounts"`.
+#' - `"FT"`: Divides counts by the total counts in each cell, multiplies by
+#'   `scale.factor`, and applies the Freeman-Tukey transformation
+#'   `sqrt(x) + sqrt(x + 1)` to stored sparse entries. Implicit sparse zeros
+#'   remain zero. Results are stored in `"ftcounts"`.
+#'
+#' TPM lengths are the summed widths of non-overlapping exon ranges for each
+#' transcript, including retained introns when represented within exon records.
+#' Transcript biotype labels do not determine which bases are counted.
+#' A supplied GTF takes precedence; otherwise existing exon ranges
+#' in a `GRangesList` are used, or reconstructed from the stored GTF when absent.
+#' A single genomic span in a `GRanges` is insufficient without exon annotations.
+#' Exons must have positive widths and share a chromosome and strand within
+#' each transcript. The full GTF and its transcript-ID column are stored together
+#' in `metadata(object)$GTF` and `metadata(object)$gtf.transcript.id`.
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment
@@ -30,6 +52,10 @@ NormalizeCounts <- function(
   assertClass(object, "SingleCellExperiment")
   assertChoice(method.use, c("LogNormalize", "TPM", "FT"))
   assertNumber(scale.factor, lower = 1, finite = TRUE)
+  if (is.null(gtf.transcript.id)) {
+    gtf.transcript.id <- metadata(object)$gtf.transcript.id
+  }
+  assertString(gtf.transcript.id, null.ok = TRUE)
   if (!is.null(gtf)) {
     assertClass(gtf, "GRanges")
     assertString(gtf.transcript.id, null.ok = FALSE)
@@ -67,53 +93,29 @@ NormalizeCounts <- function(
   if (method.use == "TPM") {
     if (!quiet) message("Performing TPM normalization...")
 
-    # if gtf is supplied, add rowRanges
+    # Resolve exon annotations and preserve transcript metadata.
     if (!is.null(gtf)) {
-
       if (!quiet) message("\u2139 Using user supplied gtf.")
-
-      # add gtf to metadata
-      if (is.null(object@metadata$GTF)) {
-        object@metadata$GTF <- gtf
-      }
-
-      # add rowRanges
-      rowData <- rowData(object)
-      names(gtf) <- mcols(gtf)[[gtf.transcript.id]]
-      gtf <- gtf[rownames(object)]
-      mcols(gtf) <- NULL
-      rowRanges(object) <- gtf
-      rowData(object) <- rowData
-    }
-
-    # if rowRanges exists, skip
-    else if (all(lengths(rowRanges(object)) != 0)) {
-    }
-
-    # if GTF metadata exists and rowRanges does not, add rowRanges
-    else if (!is.null(object@metadata$GTF)) {
-      if (!quiet) message("\u2139 GTF metadata detected. Using transcript widths.")
-      assertClass(object@metadata$GTF, "GRanges")
-      assertTRUE(gtf.transcript.id %in% names(mcols(object@metadata$GTF)))
-      assertTRUE(all(rownames(object) %in% mcols(object@metadata$GTF)[[gtf.transcript.id]]))
-
-      # add rowRanges
-      rowData <- rowData(object)
-      gtf <- object@metadata$GTF
-      names(gtf) <- mcols(gtf)[[gtf.transcript.id]]
-      gtf <- gtf[rownames(object)]
-      mcols(gtf) <- NULL
-      rowRanges(object) <- gtf
-      rowData(object) <- rowData
-
+      object <- .StoreTranscriptGTF(object, gtf, gtf.transcript.id)
+    } else if (inherits(rowRanges(object), "GRangesList") &&
+               all(lengths(rowRanges(object)) > 0L)) {
+      annotations <- rowData(object)
+      rowRanges(object) <- .ValidateTranscriptExons(rowRanges(object), rownames(object))
+      rowData(object) <- annotations
+    } else if (!is.null(metadata(object)$GTF)) {
+      if (!quiet) message("\u2139 Using exon annotations from the stored GTF.")
+      object <- .StoreTranscriptGTF(object, metadata(object)$GTF, gtf.transcript.id)
     } else {
-      stop("Transcript widths not found in rowRanges or GTF metadata. Please provide the gtf.")
+      stop("Transcript exon ranges are required for TPM. Please provide a GTF with exon annotations.", call. = FALSE)
     }
 
-    kb_widths <- width(rowRanges(object)) / 1000
+    kb_widths <- sum(GenomicRanges::width(rowRanges(object))) / 1000
     rpk_counts <- (raw_counts / kb_widths)
-    scale.factor <- col_sum / 1e6
-    norm_counts <- rpk_counts %*% Diagonal(x = 1 / scale.factor)
+    rpk_totals <- colSums(rpk_counts)
+    tpm_scale <- numeric(length(rpk_totals))
+    nonempty <- rpk_totals > 0
+    tpm_scale[nonempty] <- 1e6 / rpk_totals[nonempty]
+    norm_counts <- rpk_counts %*% Diagonal(x = tpm_scale)
     dimnames(norm_counts) <- dimnames(raw_counts)
 
     assay(object, "tpmcounts") <- norm_counts

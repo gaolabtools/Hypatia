@@ -9,6 +9,17 @@
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns The object after transcript selection, with cell QC columns updated.
+#' @details Select transcripts either with an expression on transcript metadata,
+#' such as `subset = nCell >= 3`, or with transcript IDs. ID queries use the active
+#' transcript column when configured and object row names otherwise. Selection
+#' preserves the object's transcript order and original row names; IDs absent
+#' from the object are ignored. `invert = TRUE` keeps the complement.
+#'
+#' All assays and transcript annotations are subset together. Cell-level
+#' `nCount`, `nTranscript`, and `nGene` are recalculated from retained raw counts
+#' using the active gene IDs. Existing normalized assays are subset without
+#' being renormalized. Selecting no transcripts returns an object with zero rows.
+#' @seealso [SubsetCells()], [NormalizeCounts()]
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment

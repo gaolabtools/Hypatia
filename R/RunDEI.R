@@ -8,30 +8,67 @@
 #' @param group.2 Optional group label(s) for the second side of the comparison. If `NULL`, `group.1` is compared against all other cells.
 #' @param assay.use Assay name to use. The default and recommended assay is `"logcounts"`.
 #' @param min.pct Minimum fraction of cells in each group where the transcript must be detected.
-#' @param only.pos Logical; if `TRUE`, only transcripts with positive fold change will be reported.
+#' @param only.pos Logical; if `TRUE`, only transcripts with non-negative log2 fold change will be reported.
 #' @param transcripts Optional vector of active transcript IDs to test.
 #' @param p.adj P-value adjustment method. Must be one of `stats::p.adjust.methods`.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
+#' @param cell.dispersion Logical; if `TRUE`, summarize cell-to-cell expression across all cells in each comparison group.
 #'
-#' @returns A data frame with the following columns:
+#' @returns A list containing two data frames:
+#'
 #' \describe{
-#'   \item{`group.1` & `group.2`}{The two cell groups being compared.}
-#'   \item{`gene`}{The gene associated with the transcript being tested.}
-#'   \item{`transcript`}{The transcript being tested.}
-#'   \item{`pct.1`}{Percentage of cells in `group.1` with expression of the transcript.}
-#'   \item{`pct.2`}{Percentage of cells in `group.2` with expression of the transcript.}
-#'   \item{`avgExpr.1`}{Average expression of the transcript in `group.1`.}
-#'   \item{`avgExpr.2`}{Average expression of the transcript in `group.2`.}
-#'   \item{`log2FC`}{The log2 fold change in transcript expression between the two groups (`group.1` - `group.2`).}
-#'   \item{`pval`}{P-value from the Wilcoxon rank-sum test.}
-#'   \item{`padj`}{Adjusted p-value, calculated separately for each group comparison.}
+#'   \item{`$data`}{A data frame of expression summaries with columns:
+#'     \describe{
+#'       \item{`group.1` & `group.2`}{The two cell groups being compared.}
+#'       \item{`gene`}{The gene associated with the transcript being tested.}
+#'       \item{`transcript`}{The transcript being tested.}
+#'       \item{`pct.1`, `pct.2`}{Fraction of cells in each group with expression of the transcript, on the `[0, 1]` scale.}
+#'       \item{`avgExpr.1`, `avgExpr.2`}{Mean expression of the transcript across all cells in each group.}
+#'       \item{`cell.n.1`, `cell.n.2`}{Number of cells used for cell-level summaries in each group.}
+#'       \item{`cell.expr.median.1`, `cell.expr.median.2`, `cell.expr.sd.1`, `cell.expr.sd.2`, `cell.expr.iqr.1`, `cell.expr.iqr.2`}{Median, sample standard deviation, and interquartile range of cell-level expression.}
+#'     }
+#'     Dispersion columns are present as typed `NA` values when `cell.dispersion = FALSE`.
+#'   }
+#'   \item{`$stats`}{A data frame of statistical results with columns:
+#'     \describe{
+#'       \item{`group.1` & `group.2`}{The two cell groups being compared.}
+#'       \item{`gene`}{The gene associated with the transcript being tested.}
+#'       \item{`transcript`}{The transcript being tested.}
+#'       \item{`log2FC`}{`log2(avgExpr.1 / avgExpr.2)` on the selected assay, without a pseudocount. With `"logcounts"`, this is the log2 ratio of mean log-normalized values.}
+#'       \item{`pval`}{P-value from the Wilcoxon rank-sum test.}
+#'       \item{`padj`}{Adjusted p-value, calculated separately for each group comparison.}
+#'     }
+#'   }
 #' }
+#' Rows in `$data` are ordered by `group.1`, `group.2`, `gene`, and
+#' `transcript`. Rows in `$stats` are ordered by `group.1`, `group.2`,
+#' `padj`, `gene`, and `transcript`.
+#' @details The selected assay must already exist; the default is `"logcounts"`
+#' from [NormalizeCounts()]. Transcripts must be detected in at least `min.pct`
+#' of cells in both comparison groups before testing. Detection means a selected
+#' assay value above zero. A two-sided Wilcoxon rank-sum test compares the
+#' cell-level assay values, including zeros, using `matrixTests` with automatic
+#' exact/asymptotic p-value selection.
+#'
+#' `avgExpr` is the arithmetic mean on the selected assay, and `log2FC` is
+#' `log2(avgExpr.1 / avgExpr.2)` without a pseudocount. With `"logcounts"`, this
+#' compares mean log-normalized values. Optional cell-level dispersion summaries
+#' include every cell in each group. `only.pos = TRUE` retains non-negative
+#' `log2FC` values after p-value adjustment.
+#'
+#' Multiple `group.by` columns are joined with `_`. Omitting both comparison
+#' arguments compares each group with the remaining cells; exactly two groups
+#' produce one comparison. Multiple labels on either side pool their cells.
+#' P-values are adjusted across tested transcripts separately within each
+#' comparison using Bonferroni by default. An error is returned if no transcripts
+#' pass detection filtering across all comparisons.
+#' @seealso [GetExpression()], [PlotExpression()]
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment
 #' @import SummarizedExperiment
 #' @import dplyr
-#' @importFrom tibble rownames_to_column column_to_rownames
+#' @importFrom tibble rownames_to_column
 #' @importFrom purrr reduce
 #' @importFrom matrixTests row_wilcoxon_twosample
 #' @importFrom stats p.adjust
@@ -46,7 +83,8 @@ RunDEI <- function(
   only.pos = FALSE,
   transcripts = NULL,
   p.adj = "bonferroni",
-  quiet = FALSE
+  quiet = FALSE,
+  cell.dispersion = FALSE
   ) {
 
   # Check inputs
@@ -68,6 +106,7 @@ RunDEI <- function(
   assertCharacter(transcripts, null.ok = TRUE, any.missing = FALSE, unique = TRUE)
   p.adj <- .PAdjustMethod(p.adj)
   assertFlag(quiet)
+  assertFlag(cell.dispersion)
 
   # Transcript and gene IDs
   active_ids <- .ActiveIds(object)
@@ -123,6 +162,7 @@ RunDEI <- function(
 
   # Loop through object grp list
   data_list <- list()
+  stats_list <- list()
 
   for (comp in names(object_grp_list)) {
 
@@ -178,6 +218,31 @@ RunDEI <- function(
     mat_grp1_dense <- suppressWarnings(as.matrix(expr_mat_grp1))
     mat_grp2_dense <- suppressWarnings(as.matrix(expr_mat_grp2))
 
+    ## cell-to-cell expression dispersion for tested transcripts
+    if (cell.dispersion) {
+      if (!quiet) message("  Calculating cell-to-cell dispersion...")
+      dispersion_grp1 <- .CellExpressionDispersion(mat_grp1_dense)
+      dispersion_grp2 <- .CellExpressionDispersion(mat_grp2_dense)
+    } else {
+      dispersion_grp1 <- data.frame(
+        transcript = test_transcripts,
+        cell.n = rep(NA_integer_, length(test_transcripts)),
+        cell.expr.median = rep(NA_real_, length(test_transcripts)),
+        cell.expr.sd = rep(NA_real_, length(test_transcripts)),
+        cell.expr.iqr = rep(NA_real_, length(test_transcripts))
+      )
+      dispersion_grp2 <- dispersion_grp1
+    }
+    stopifnot(identical(dispersion_grp1$transcript, rownames(expr_df)))
+    stopifnot(identical(dispersion_grp2$transcript, rownames(expr_df)))
+    names(dispersion_grp1)[-1] <- paste0(names(dispersion_grp1)[-1], ".1")
+    names(dispersion_grp2)[-1] <- paste0(names(dispersion_grp2)[-1], ".2")
+    expr_df <- cbind(
+      expr_df,
+      dispersion_grp1[, -1, drop = FALSE],
+      dispersion_grp2[, -1, drop = FALSE]
+    )
+
     ## test
     test_result <- row_wilcoxon_twosample(
       x = mat_grp1_dense,
@@ -217,19 +282,27 @@ RunDEI <- function(
         "avgExpr.1" = "avg.grp1",
         "avgExpr.2" = "avg.grp2",
         "pval" = "pvalue"
-      ) %>%
-      select(group.1, group.2, gene, transcript, pct.1, pct.2, avgExpr.1, avgExpr.2, log2FC, pval, padj)
+      )
 
-    data_list[[comp]] <- results
+    data_list[[comp]] <- results %>%
+      select(group.1, group.2, gene, transcript, pct.1, pct.2,
+             avgExpr.1, avgExpr.2, cell.n.1, cell.expr.median.1,
+             cell.expr.sd.1, cell.expr.iqr.1, cell.n.2,
+             cell.expr.median.2, cell.expr.sd.2, cell.expr.iqr.2)
+    stats_list[[comp]] <- results %>%
+      select(group.1, group.2, gene, transcript, log2FC, pval, padj)
   }
 
   # combine results from across comparisons
   if (length(data_list) == 0) {
-    stop("0 transcripts passed detection thresholds (check min.pct).", call. = FALSE)
+    stop("0 transcripts passed filtering (check min.pct).", call. = FALSE)
   }
-  final_results <- reduce(data_list, rbind)
+  final_data <- reduce(data_list, rbind) %>%
+    arrange(group.1, group.2, gene, transcript)
+  final_stats <- reduce(stats_list, rbind) %>%
+    arrange(group.1, group.2, padj, gene, transcript)
 
   if (!quiet) message("Done.")
 
-  return(final_results)
+  return(list(data = final_data, stats = final_stats))
 }

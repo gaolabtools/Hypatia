@@ -23,3 +23,17 @@ The object after cell selection, with transcript QC columns updated.
 \description{
 Subsets a \code{SingleCellExperiment} object by cell metadata or cell IDs.
 }
+\details{
+Select cells either with an expression on cell metadata, such as
+\code{subset = nTranscript >= 50}, or with a vector of cell IDs. Selection preserves
+the object's cell order; IDs absent from the object are ignored.
+\code{invert = TRUE} keeps the complement of the selected cells.
+
+All assays and cell annotations are subset together, and transcript-level
+\code{nCell} is recalculated from the retained raw counts. Existing normalized
+assays are subset without being renormalized. Selecting no cells returns
+an object with zero columns.
+}
+\seealso{
+\code{\link[=SubsetTranscripts]{SubsetTranscripts()}}
+}

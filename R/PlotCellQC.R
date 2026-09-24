@@ -4,7 +4,9 @@
 #'
 #' @param object A `SingleCellExperiment` object.
 #' @param group.by One or more `colData` column names used to define cell groups.
-#' @param colors A vector of colors to use for the plot.
+#' @param colors A vector of cell-group colors, optionally named by group label.
+#'   If `NULL`, uses the shared categorical group palette: ten fixed colors,
+#'   or the qualitative HCL `"Dark 3"` palette for more than ten groups.
 #' @param pt.size Point size.
 #' @param pt.alpha Point alpha.
 #' @param text.size Text size.
@@ -12,6 +14,15 @@
 #' @param combine Logical; if `TRUE`, combines plots using `patchwork`.
 #'
 #' @returns A patchwork object when `combine = TRUE`; otherwise a named list of ggplot objects.
+#' @details Three violin plots show the distributions of detected transcripts
+#' (`nTranscript`), detected genes (`nGene`), and total isoform counts (`nCount`)
+#' with individual cells overlaid. A fourth panel plots `nTranscript` against
+#' `nCount` and reports their Pearson correlation across all plotted cells.
+#'
+#' The plots use the QC values already stored in `colData(object)`. Grouping
+#' defaults to `project`; multiple `group.by` columns are joined with `_`.
+#' Use `combine = FALSE` to customize the four panels independently.
+#' @seealso [CreateSCE()], [SubsetCells()], [SubsetTranscripts()]
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment
@@ -109,10 +120,8 @@ PlotCellQC <- function(
     p_ncount <- p_ncount + scale_fill_manual(values = colors)
     p_scatt <- p_scatt + scale_color_manual(values = colors)
   } else {
-    colors <- c("#A5D1B0", "#CE8A8D", "#FFF7C1", "#E0F3FF", "#ADD3F4",
-                "#F7C9CF", "#FEE4E8", "#7CA3B8", "#BFB8D6", "#FCCB8E")
     n_colors <- length(unique(plotdata$group_var))
-    colors <- .DefaultDiscreteColors(n_colors, colors)
+    colors <- .DefaultGroupColors(n_colors)
     p_ntranscript <- p_ntranscript + scale_fill_manual(values = colors)
     p_ngene <- p_ngene + scale_fill_manual(values = colors)
     p_ncount <- p_ncount + scale_fill_manual(values = colors)

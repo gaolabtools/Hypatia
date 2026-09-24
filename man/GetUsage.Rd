@@ -11,7 +11,8 @@ GetUsage(
   group.subset = NULL,
   assay.use = "counts",
   min.tx.cts = 1,
-  quiet = FALSE
+  quiet = FALSE,
+  cell.dispersion = FALSE
 )
 }
 \arguments{
@@ -28,18 +29,43 @@ GetUsage(
 \item{min.tx.cts}{Minimum transcript counts required before proportions are calculated.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
+
+\item{cell.dispersion}{Logical; if \code{TRUE}, summarize cell-to-cell transcript proportions among cells with positive retained-gene counts.}
 }
 \value{
 A data frame with the following columns:
 \describe{
 \item{\code{group}}{The cell group being queried.}
 \item{\code{gene}}{The gene being queried.}
-\item{\code{gene.pct}}{Percentage of cells in \code{group} with expression of the gene.}
+\item{\code{gene.pct}}{Fraction of cells in \code{group} with expression of the gene, on the \verb{[0, 1]} scale.}
 \item{\code{transcript}}{The associated transcript.}
 \item{\code{cts}}{Total counts of the transcript across cells in \code{group}.}
 \item{\code{prop}}{Transcript proportion.}
+\item{\code{cell.n}}{Number of gene-positive cells used for cell-level summaries.}
+\item{\code{cell.prop.mean}, \code{cell.prop.median}, \code{cell.prop.sd}, \code{cell.prop.iqr}}{Mean, median, sample standard deviation, and interquartile range of cell-level transcript proportions.}
+\item{\code{cell.prop.zero.frac}}{Fraction of gene-positive cells in which the transcript is not detected.}
 }
+Dispersion columns are present as typed \code{NA} values when \code{cell.dispersion = FALSE}.
 }
 \description{
 Summarizes isoform counts and proportions for one or more genes.
+}
+\details{
+Counts are pooled across cells separately for each gene and group.
+Within each group, transcripts below \code{min.tx.cts} are removed before dividing
+transcript counts by the retained gene total. Consequently, \code{prop} describes
+pooled usage, rather than the average of cell-level proportions. \code{gene.pct}
+is measured before transcript count filtering.
+
+With \code{cell.dispersion = TRUE}, proportions are also calculated separately in
+cells with positive retained-gene counts. Undetected transcripts contribute
+zero within these eligible cells; cells with no retained-gene counts are
+excluded. These summaries describe biological cell-to-cell variation.
+
+Gene queries use the active gene IDs, and transcript labels use the active
+transcript IDs or object row names. Multiple \code{group.by} columns are joined
+with \verb{_}. \code{group.subset} selects groups without pooling them.
+}
+\seealso{
+\code{\link[=RunDIU]{RunDIU()}}, \code{\link[=PlotUsage]{PlotUsage()}}
 }

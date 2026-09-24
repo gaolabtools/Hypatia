@@ -21,11 +21,11 @@
 #' @format ## `gbm_rowData`
 #' A data frame with 56,642 rows and 7 columns:
 #' \describe{
-#'   \item{`structural_category`}{Structural category of the transcript. One of full-splice_match", "incomplete-splice_match", "novel_in_catalog", "novel_not_in_catalog", "genic", "antisense", "fusion", "intergenic", "genic_intron". (SQANTI3}
+#'   \item{`structural_category`}{Structural category of the transcript: `"full-splice_match"`, `"incomplete-splice_match"`, `"novel_in_catalog"`, `"novel_not_in_catalog"`, `"genic"`, `"antisense"`, `"fusion"`, `"intergenic"`, or `"genic_intron"`. (SQANTI3)}
 #'   \item{`gene_id`}{Associated Ensembl gene ID of the transcript.}
-#'   \item{`RTS_stage`}{Logical; `TRUE` if transcript contains one ore more RT switching artifacts. (SQANTI3)}
+#'   \item{`RTS_stage`}{Logical; `TRUE` if transcript contains one or more RT switching artifacts. (SQANTI3)}
 #'   \item{`within_CAGE_peak`}{Logical; `TRUE` if transcript start site is within a CAGE peak. (SQANTI3)}
-#'   \item{`within_polyA_site`}{Logical; `TRUE` if transcript start site is within a polyA site. (SQANTI3)}
+#'   \item{`within_polyA_site`}{Logical; `TRUE` if transcript end site is within a polyA site. (SQANTI3)}
 #'   \item{`gene_name`}{Associated gene name of the transcript.}
 #'   \item{`transcript_name`}{Associated transcript name of the transcript.}
 #'   ...

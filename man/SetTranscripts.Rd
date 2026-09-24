@@ -17,3 +17,10 @@ The object with \code{metadata(object)$active.transcript.id} updated.
 \description{
 Selects the \code{rowData} column used as transcript IDs in downstream functions.
 }
+\details{
+A nonempty \code{id} must identify a character column of unique,
+non-missing transcript IDs. Downstream transcript queries and reported
+transcript labels use that column. Setting \code{id = ""} restores the use of
+object row names. This changes the active setting without renaming the
+stored assay rows or changing transcript-to-gene assignments.
+}

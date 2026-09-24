@@ -19,3 +19,13 @@ The object with \code{metadata(object)$active.gene.id} updated.
 \description{
 Selects the \code{rowData} column used as gene IDs in downstream functions.
 }
+\details{
+The selected column must contain non-missing character IDs.
+Transcripts sharing an ID are treated as belonging to the same gene in
+subsequent analyses. A message is emitted if the number of distinct gene IDs
+changes, unless \code{quiet = TRUE}.
+
+This updates the active setting without renaming assay rows or recalculating
+existing QC columns. In particular, \code{nGene} is recalculated when
+\code{\link[=SubsetTranscripts]{SubsetTranscripts()}} is used.
+}

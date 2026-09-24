@@ -18,3 +18,11 @@ The object with \code{metadata(object)$active.group.id} updated.
 \description{
 Selects the \code{colData} column used as the default cell grouping in downstream functions.
 }
+\details{
+The selected character or factor column must contain no missing
+values and at least two observed groups. Labels containing spaces are
+supported. Downstream analysis and summary functions use this column when
+\code{group.by = NULL}; an explicit \code{group.by} overrides it. To group by a
+combination of metadata columns, pass those column names through \code{group.by}
+in the downstream function.
+}

@@ -8,13 +8,35 @@
 #' @param active.gene.id Name of the `rowData` column containing gene IDs for each transcript.
 #' @param active.group.id Optional `colData` column name to use as the default cell grouping in downstream functions.
 #' @param active.transcript.id Optional `rowData` column name containing unique transcript IDs to report instead of row names.
-#' @param gtf A `GRanges` object containing structural annotations for all transcripts in `countData`.
+#' @param gtf Optional `GRanges` containing exon annotations for all transcripts in `countData`. If a `type` column is present, only `"exon"` records are used for transcript ranges; otherwise all records are treated as exons.
 #' @param gtf.transcript.id Name of metadata column in `gtf` that corresponds to the transcript IDs in `countData`.
 #' @param project Project name to be stored in the object's `colData` slot.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns A `SingleCellExperiment` object with a `"counts"` assay, QC columns in `colData`/`rowData`, and Hypatia settings in `metadata(object)`.
 #'
+#' @details Metadata row names must already match the count-matrix identifiers
+#' in the same order. Counts must be numeric, non-negative, and non-missing;
+#' dense matrices and data frames are converted to a sparse `dgCMatrix`.
+#' Cell metadata must contain at least one column with two distinct non-missing
+#' values. Active gene IDs may repeat; active transcript IDs must be unique.
+#'
+#' The function calculates total counts (`nCount`), detected transcripts
+#' (`nTranscript`), and detected genes (`nGene`) per cell, plus the number of
+#' cells detecting each transcript (`nCell`). Detection means a count above zero.
+#' Unspecified active transcript and group settings are stored as `""`, meaning
+#' use transcript row names and supply `group.by` downstream, respectively.
+#'
+#' When `gtf` is supplied, the complete annotation is retained in
+#' `metadata(object)$GTF` and its ID-column name in
+#' `metadata(object)$gtf.transcript.id`. Exons are grouped by count-matrix
+#' transcript IDs and stored as a `GRangesList` in `rowRanges(object)`, in assay
+#' row order. Overlapping or repeated exon bases within a transcript are counted
+#' once. Every requested transcript must have positive-width exons on a single
+#' chromosome and strand. Transcript spans without exon records are insufficient
+#' when the GTF contains a `type` column. The supplied transcript metadata remains
+#' in `rowData(object)`.
+#' @seealso [SetGenes()], [SetTranscripts()], [SetGroups()]
 #' @export
 #' @import checkmate
 #' @import Matrix
@@ -150,24 +172,7 @@ CreateSCE <- function(
   if (!is.null(gtf)) {
     if (!quiet) message("Adding rowRanges to object...")
 
-    ## store provided rowRanges in metadata
-    metadata(object)$GTF <- gtf
-
-    ## assign names of GRange object
-    names(gtf) <- mcols(gtf)[[gtf.transcript.id]]
-
-    ## filter and match with countData rownames
-    gtf <- gtf[rownames(countData)]
-    if (!identical(rownames(object), names(gtf))) {
-      stop("Please check that gtf mcol '", gtf.transcript.id, "' contains all transcripts found in countData.")
-    }
-
-    ## add rowRanges to the object - do not copy mcols to object rowData
-    mcols(gtf) <- NULL
-    rowRanges(object) <- gtf
-
-    ## add back original rowData
-    rowData(object) <- rowData
+    object <- .StoreTranscriptGTF(object, gtf, gtf.transcript.id)
   }
 
   if (!quiet) message("Done.")

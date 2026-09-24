@@ -7,6 +7,14 @@
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns The object with `metadata(object)$active.gene.id` updated.
+#' @details The selected column must contain non-missing character IDs.
+#' Transcripts sharing an ID are treated as belonging to the same gene in
+#' subsequent analyses. A message is emitted if the number of distinct gene IDs
+#' changes, unless `quiet = TRUE`.
+#'
+#' This updates the active setting without renaming assay rows or recalculating
+#' existing QC columns. In particular, `nGene` is recalculated when
+#' [SubsetTranscripts()] is used.
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment

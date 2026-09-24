@@ -2,7 +2,7 @@
 % Please edit documentation in R/CreateSCE.R
 \name{CreateSCE}
 \alias{CreateSCE}
-\title{Create a \emph{SingleCellExperiment} object}
+\title{Create a SingleCellExperiment object}
 \usage{
 CreateSCE(
   countData,
@@ -30,7 +30,7 @@ CreateSCE(
 
 \item{active.transcript.id}{Optional \code{rowData} column name containing unique transcript IDs to report instead of row names.}
 
-\item{gtf}{A \code{GRanges} object containing structural annotations for all transcripts in \code{countData}.}
+\item{gtf}{Optional \code{GRanges} containing exon annotations for all transcripts in \code{countData}. If a \code{type} column is present, only \code{"exon"} records are used for transcript ranges; otherwise all records are treated as exons.}
 
 \item{gtf.transcript.id}{Name of metadata column in \code{gtf} that corresponds to the transcript IDs in \code{countData}.}
 
@@ -43,4 +43,30 @@ A \code{SingleCellExperiment} object with a \code{"counts"} assay, QC columns in
 }
 \description{
 Creates a \code{SingleCellExperiment} object from isoform counts, cell-level metadata, and transcript-level metadata.
+}
+\details{
+Metadata row names must already match the count-matrix identifiers
+in the same order. Counts must be numeric, non-negative, and non-missing;
+dense matrices and data frames are converted to a sparse \code{dgCMatrix}.
+Cell metadata must contain at least one column with two distinct non-missing
+values. Active gene IDs may repeat; active transcript IDs must be unique.
+
+The function calculates total counts (\code{nCount}), detected transcripts
+(\code{nTranscript}), and detected genes (\code{nGene}) per cell, plus the number of
+cells detecting each transcript (\code{nCell}). Detection means a count above zero.
+Unspecified active transcript and group settings are stored as \code{""}, meaning
+use transcript row names and supply \code{group.by} downstream, respectively.
+
+When \code{gtf} is supplied, the complete annotation is retained in
+\code{metadata(object)$GTF} and its ID-column name in
+\code{metadata(object)$gtf.transcript.id}. Exons are grouped by count-matrix
+transcript IDs and stored as a \code{GRangesList} in \code{rowRanges(object)}, in assay
+row order. Overlapping or repeated exon bases within a transcript are counted
+once. Every requested transcript must have positive-width exons on a single
+chromosome and strand. Transcript spans without exon records are insufficient
+when the GTF contains a \code{type} column. The supplied transcript metadata remains
+in \code{rowData(object)}.
+}
+\seealso{
+\code{\link[=SetGenes]{SetGenes()}}, \code{\link[=SetTranscripts]{SetTranscripts()}}, \code{\link[=SetGroups]{SetGroups()}}
 }

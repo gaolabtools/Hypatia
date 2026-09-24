@@ -8,7 +8,12 @@
 #' @param group.subset Optional vector of group labels to include.
 #' @param group.order Optional vector of group labels specifying plotting order.
 #' @param plot.type Plot type: `"violin"`, `"reducedDim"`, or `"heatmap"`.
-#' @param colors A vector of colors to use for the plot.
+#' @param colors A vector of colors for cell groups (violin fills and heatmap
+#'   annotations), optionally named by group label, or for the expression
+#'   gradient in reduced-dimension plots. If `NULL`, cell groups use the shared
+#'   categorical group palette: ten fixed colors, or the qualitative HCL
+#'   `"Dark 3"` palette for more than ten groups. Reduced-dimension plots use a
+#'   gray-to-red expression gradient.
 #' @param colors.heatmap A vector of colors for the heatmap color bar.
 #' @param dim.use Name of the `reducedDim` slot to use when `plot.type = "reducedDim"`.
 #' @param assay.use Assay name to use.
@@ -22,6 +27,24 @@
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns A ggplot object.
+#' @details The requested assay must already exist; the default is `"logcounts"`
+#' from [NormalizeCounts()]. Transcript queries use active transcript IDs or
+#' object row names. Multiple `group.by` columns are joined with `_`.
+#'
+#' - `"violin"`: Expression distributions by group with individual cells
+#'   overlaid, faceted by transcript.
+#' - `"reducedDim"`: Cells in the first two dimensions of the embedding named
+#'   by `dim.use`, colored by expression and faceted by transcript. The embedding
+#'   must already be stored in the object; this function does not calculate it.
+#' - `"heatmap"`: Individual-cell expression across transcripts, with cells
+#'   ordered by group and cell ID. By default, expression is centered and scaled
+#'   to unit sample standard deviation separately for each transcript across
+#'   plotted cells, then clipped to `[-2, 2]`. Set `scale.heatmap = FALSE` to
+#'   display values on the selected assay's original scale.
+#'
+#' `group.subset` controls which cells are displayed and `group.order` controls
+#' group ordering. Plotting does not perform differential expression testing.
+#' @seealso [GetExpression()], [RunDEI()]
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment
@@ -158,9 +181,7 @@ PlotExpression <- function(
       p1 <- p1 +
         scale_fill_manual(values = colors)
     } else {
-      colors <- c("#A5D1B0", "#CE8A8D", "#FFF7C1", "#E0F3FF", "#ADD3F4",
-                  "#F7C9CF", "#FEE4E8", "#7CA3B8", "#BFB8D6", "#FCCB8E")
-      colors <- .DefaultDiscreteColors(length(group_var_order), colors)
+      colors <- .DefaultGroupColors(length(group_var_order))
       p1 <- p1 +
         scale_fill_manual(values = colors)
     }
@@ -262,9 +283,7 @@ PlotExpression <- function(
       mutate(y_pos = max(as.numeric(plotdata$transcript)) + 0.5 + anno_bar_height)
     ## colors
     if (is.null(colors)) {
-      colors <- c("#A5D1B0", "#CE8A8D", "#FFF7C1", "#E0F3FF", "#ADD3F4",
-                  "#F7C9CF", "#FEE4E8", "#7CA3B8", "#BFB8D6", "#FCCB8E")
-      colors <- .DefaultDiscreteColors(length(group_var_order), colors)
+      colors <- .DefaultGroupColors(length(group_var_order))
     }
     if (is.null(colors.heatmap)) {
       colors.heatmap <- c("#0D47A1", "black", "#FFEB3B")

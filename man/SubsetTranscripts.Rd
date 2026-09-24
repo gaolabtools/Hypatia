@@ -29,3 +29,18 @@ The object after transcript selection, with cell QC columns updated.
 \description{
 Subsets a \code{SingleCellExperiment} object by transcript metadata or transcript IDs.
 }
+\details{
+Select transcripts either with an expression on transcript metadata,
+such as \code{subset = nCell >= 3}, or with transcript IDs. ID queries use the active
+transcript column when configured and object row names otherwise. Selection
+preserves the object's transcript order and original row names; IDs absent
+from the object are ignored. \code{invert = TRUE} keeps the complement.
+
+All assays and transcript annotations are subset together. Cell-level
+\code{nCount}, \code{nTranscript}, and \code{nGene} are recalculated from retained raw counts
+using the active gene IDs. Existing normalized assays are subset without
+being renormalized. Selecting no transcripts returns an object with zero rows.
+}
+\seealso{
+\code{\link[=SubsetCells]{SubsetCells()}}, \code{\link[=NormalizeCounts]{NormalizeCounts()}}
+}

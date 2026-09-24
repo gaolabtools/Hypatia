@@ -12,16 +12,21 @@ RunDIV(
   entropy.use = "Tsallis",
   assay.use = "counts",
   entropy.thresh = NULL,
+  prop.thresh = 0.2,
   min.gene.pct = 0.05,
   min.gene.cts = 15,
   min.tx.cts = 1,
   boot.iter = 100,
-  boot.size = 0.6,
+  boot.fraction = 0.6,
+  boot.ncells = NULL,
   include.single = TRUE,
   order = NULL,
   genes = NULL,
   p.adj = "bonferroni",
-  quiet = FALSE
+  quiet = FALSE,
+  cell.dispersion = FALSE,
+  top.n = NULL,
+  renormalize = FALSE
 )
 }
 \arguments{
@@ -37,27 +42,37 @@ RunDIV(
 
 \item{assay.use}{Assay name to use.}
 
-\item{entropy.thresh}{Threshold used to classify genes as \code{"monoform"} or \code{"polyform"}. If \code{NULL}, a method-specific default is used.}
+\item{entropy.thresh}{Diversity index threshold used to classify genes as monoform or polyform. If \code{NULL}, a default is chosen from the entropy index. Default thresholds for Tsallis and Renyi are defined only at orders 3 and 2, respectively; other orders return \code{NA} classifications unless a threshold is supplied.}
+
+\item{prop.thresh}{Minimum within-gene transcript proportion used to define an effective isoform. Transcripts with proportions greater than or equal to this value are effective.}
 
 \item{min.gene.pct}{Minimum fraction of cells in each group where the gene must be detected.}
 
 \item{min.gene.cts}{Minimum total gene counts required in each group.}
 
-\item{min.tx.cts}{Minimum transcript counts required before diversity is calculated.}
+\item{min.tx.cts}{Minimum total transcript counts in at least one comparison group for inclusion in diversity calculations. Effective isoform counts apply this threshold separately within each group.}
 
 \item{boot.iter}{Number of bootstrap iterations to perform.}
 
-\item{boot.size}{Proportion of cells sampled per bootstrap iteration.}
+\item{boot.fraction}{Proportion of cells sampled from each comparison group per bootstrap iteration.}
+
+\item{boot.ncells}{Optional fixed number of cell draws sampled with replacement from each comparison group per bootstrap iteration. Cannot be supplied together with \code{boot.fraction}.}
 
 \item{include.single}{Logical; if \code{FALSE}, genes with only one associated transcript after filtering will be excluded from the analysis.}
 
-\item{order}{Entropy order. Corresponds to \code{q} for Tsallis and \code{alpha} for Renyi.}
+\item{order}{Entropy order. Corresponds to \code{q} for Tsallis and \code{alpha} for Renyi. At order 1, Tsallis and Renyi use their Shannon entropy limit, and NormalizedRenyi uses normalized Shannon entropy.}
 
 \item{genes}{Optional vector of active gene IDs to test. Genes are still subject to filtering.}
 
 \item{p.adj}{P-value adjustment method. Must be one of \code{stats::p.adjust.methods}.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
+
+\item{cell.dispersion}{Logical; if \code{TRUE}, summarize cell-to-cell diversity among cells with positive retained-gene counts.}
+
+\item{top.n}{Optional number of the most abundant isoforms to include in diversity calculations. If \code{NULL}, all isoforms are included. Must be at least 2 when supplied.}
+
+\item{renormalize}{Logical; if \code{TRUE}, rescale the selected isoform proportions to sum to one before calculating diversity.}
 }
 \value{
 A list containing two data frames:
@@ -67,12 +82,15 @@ A data frame of summarized data with columns:
 \describe{
 \item{\code{group.1} & \code{group.2}}{The two cell groups being compared.}
 \item{\code{gene}}{The gene being tested.}
-\item{\code{gene.pct.1}}{Percentage of cells in \code{group.1} with expression of the gene.}
-\item{\code{gene.pct.2}}{Percentage of cells in \code{group.2} with expression of the gene.}
-\item{\code{n.transcripts}}{Number of transcripts associated with the gene.}
-\item{\code{div.1}}{Bootstrapped isoform diversity values of each gene for \code{group.1}.}
-\item{\code{div.2}}{Bootstrapped isoform diversity values of each gene for \code{group.2}.}
+\item{\code{gene.pct.1}}{Fraction of cells in \code{group.1} with expression of the gene, on the \verb{[0, 1]} scale.}
+\item{\code{gene.pct.2}}{Fraction of cells in \code{group.2} with expression of the gene, on the \verb{[0, 1]} scale.}
+\item{\code{n.transcripts}}{Number of transcripts retained for the gene after count filtering, before optional \code{top.n} selection.}
+\item{\code{div.1}}{A list-column containing bootstrapped isoform diversity values of each gene for \code{group.1}.}
+\item{\code{div.2}}{A list-column containing bootstrapped isoform diversity values of each gene for \code{group.2}.}
+\item{\code{cell.n.1}, \code{cell.n.2}}{Number of gene-positive cells used for cell-level summaries in each group.}
+\item{\code{cell.div.mean.1}, \code{cell.div.mean.2}, \code{cell.div.median.1}, \code{cell.div.median.2}, \code{cell.div.sd.1}, \code{cell.div.sd.2}, \code{cell.div.iqr.1}, \code{cell.div.iqr.2}}{Mean, median, sample standard deviation, and interquartile range of cell-level diversity.}
 }
+Cell-dispersion columns are present as typed \code{NA} values when \code{cell.dispersion = FALSE}.
 Includes NA entries derived from bootstrapped sampling that resulted in 0 gene counts.
 }
 
@@ -84,15 +102,48 @@ A data frame containing statistical results with columns:
 \item{\code{avgDiv.1}}{Average of bootstrapped isoform diversity of the gene for cells in \code{group.1}.}
 \item{\code{avgDiv.2}}{Average of bootstrapped isoform diversity of the gene for cells in \code{group.2}.}
 \item{\code{div.diff}}{The difference in averaged isoform diversities between groups (\code{group.1} - \code{group.2}).}
-\item{\code{log2FC}}{The log2 fold-change of averaged isoform diversities between groups (\code{group.1} - \code{group.2}).}
 \item{\code{pval}}{P-value from the Wilcoxon rank-sum test.}
-\item{\code{padj}}{Adjusted p-value.}
-\item{\code{div.class.1}}{Isoform diversity classification of the gene for \code{group.1}.}
-\item{\code{div.class.2}}{Isoform diversity classification of the gene for \code{group.2}.}
+\item{\code{padj}}{Adjusted p-value, calculated separately within each comparison.}
+\item{\code{n.effective.1}, \code{n.effective.2}}{Number of transcripts with within-gene proportion greater than or equal to \code{prop.thresh} in each group.}
+\item{\code{div.class.1}}{\code{"monoform"} when \code{avgDiv.1} is at or below \code{entropy.thresh} and \code{"polyform"} otherwise.}
+\item{\code{div.class.2}}{\code{"monoform"} when \code{avgDiv.2} is at or below \code{entropy.thresh} and \code{"polyform"} otherwise.}
 }
 }
 }
+Rows in \verb{$data} are ordered by \code{group.1}, \code{group.2}, and \code{gene}. Rows in
+\verb{$stats} are ordered by \code{group.1}, \code{group.2}, \code{padj}, and \code{gene}.
 }
 \description{
 Tests genes for differential isoform diversity between cell groups.
+}
+\details{
+Genes must meet \code{min.gene.pct} and \code{min.gene.cts} in both comparison
+groups. Transcripts are retained when their total counts meet \code{min.tx.cts}
+in either group. This retained set is used for bootstrapping; \code{include.single}
+controls whether genes with only one retained transcript are tested.
+
+Cells are sampled with replacement within each group for \code{boot.iter}
+iterations. Each iteration draws \code{ceiling(boot.fraction * ncol(group))} cells,
+or \code{boot.ncells} when supplied, and calculates diversity from their pooled
+transcript counts. The entropy indices and optional \code{top.n} selection and
+renormalization follow \code{\link[=GetDiversity]{GetDiversity()}}. A two-sided, unpaired Wilcoxon
+rank-sum test with an asymptotic p-value compares the bootstrap diversity
+values. \code{avgDiv} averages available bootstrap values, and classification
+applies \code{entropy.thresh} to that average.
+
+Effective isoform counts are calculated from the original pooled counts,
+applying \code{min.tx.cts} separately in each group, then counting proportions
+at or above \code{prop.thresh}. They are independent of bootstrap sampling and
+\code{top.n}. Optional \code{cell.dispersion} summaries describe diversity among cells
+with positive retained-gene counts, rather than bootstrap uncertainty.
+
+Multiple \code{group.by} columns are joined with \verb{_}. Omitting both comparison
+arguments compares each group with the remaining cells; exactly two groups
+produce one comparison. Multiple labels on either side pool their cells.
+P-values are adjusted within each comparison using Bonferroni by default.
+Call \code{set.seed()} for reproducible results; no seed is set internally.
+An error is returned if no genes pass filtering across all comparisons.
+}
+\seealso{
+\code{\link[=GetDiversity]{GetDiversity()}}, \code{\link[=PlotDiversity]{PlotDiversity()}}
 }

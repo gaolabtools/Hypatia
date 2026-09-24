@@ -34,7 +34,11 @@ PlotUsage(
 
 \item{plot.type}{Plot type: \code{"stackedbar"}, \code{"bar"}, \code{"pie"}, or \code{"heatmap"}.}
 
-\item{colors}{A vector of colors to use for the plot.}
+\item{colors}{A vector of transcript colors, optionally named by transcript
+ID, or gradient colors for heatmaps. If \code{NULL}, bars and pies use the shared
+categorical palette: ten fixed colors, or the qualitative HCL \code{"Dark 3"}
+palette for more than ten categories, with \code{"Other"} shown in gray.
+Heatmaps use a white-purple-yellow proportion gradient.}
 
 \item{show.prop}{Logical; if \code{TRUE}, proportion labels will be included on the plot.}
 
@@ -55,4 +59,24 @@ A ggplot object.
 }
 \description{
 Plots transcript proportions for a gene across cell groups.
+}
+\details{
+Transcript counts for the requested gene are pooled within each
+group. A transcript is retained if it meets \code{min.tx.cts} in at least one
+selected group; proportions are then calculated from retained gene totals.
+Transcripts below \code{min.tx.prop} in every selected group are combined into
+\code{"Other"}. Groups with zero retained counts are omitted.
+\itemize{
+\item \code{"stackedbar"}: One stacked bar per group showing isoform composition.
+\item \code{"bar"}: Separate transcript bars, with one panel per group.
+\item \code{"pie"}: One pie chart per group showing isoform composition.
+\item \code{"heatmap"}: Transcript-by-group tiles colored by proportion.
+}
+
+\code{show.prop = TRUE} adds proportion labels. Gene and transcript labels use
+the active identifiers, and multiple \code{group.by} columns are joined with \verb{_}.
+These plots summarize pooled counts and do not perform differential testing.
+}
+\seealso{
+\code{\link[=GetUsage]{GetUsage()}}, \code{\link[=RunDIU]{RunDIU()}}
 }

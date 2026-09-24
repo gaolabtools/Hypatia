@@ -14,12 +14,14 @@ PlotDiversity(
   entropy.use = "Tsallis",
   assay.use = "counts",
   entropy.thresh = NULL,
+  prop.thresh = 0.2,
   min.tx.cts = 1,
   order = NULL,
   colors = NULL,
   text.size = 12,
-  nrow = 1,
-  quiet = FALSE
+  quiet = FALSE,
+  top.n = NULL,
+  renormalize = FALSE
 )
 }
 \arguments{
@@ -39,23 +41,53 @@ PlotDiversity(
 
 \item{assay.use}{Assay name to use.}
 
-\item{entropy.thresh}{Threshold used to classify genes as \code{"monoform"} or \code{"polyform"}. If \code{NULL}, a method-specific default is used.}
+\item{entropy.thresh}{Diversity index threshold used to classify genes as monoform or polyform. If \code{NULL}, a default is chosen from the entropy index. Default thresholds for Tsallis and Renyi are defined only at orders 3 and 2, respectively; other orders return \code{NA} classifications unless a threshold is supplied.}
+
+\item{prop.thresh}{Minimum within-gene transcript proportion used to define an effective isoform. Transcripts with proportions greater than or equal to this value are effective.}
 
 \item{min.tx.cts}{Minimum transcript counts required before diversity is calculated.}
 
-\item{order}{Entropy order. Corresponds to \code{q} for Tsallis and \code{alpha} for Renyi.}
+\item{order}{Entropy order. Corresponds to \code{q} for Tsallis and \code{alpha} for Renyi. At order 1, Tsallis and Renyi use their Shannon entropy limit, and NormalizedRenyi uses normalized Shannon entropy.}
 
-\item{colors}{A vector of colors to use for the plot.}
+\item{colors}{A vector of colors, optionally named by group label (lollipop
+and density) or gene ID (parallel coordinates). If \code{NULL}, cell groups use
+the shared categorical group palette: ten fixed colors, or the qualitative
+HCL \code{"Dark 3"} palette for more than ten groups. Parallel-coordinate plots
+use a separate gene palette.}
 
 \item{text.size}{Text size.}
 
-\item{nrow}{Number of facet rows.}
-
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
+
+\item{top.n}{Optional number of the most abundant isoforms to include in diversity calculations. If \code{NULL}, all isoforms are included. Must be at least 2 when supplied.}
+
+\item{renormalize}{Logical; if \code{TRUE}, rescale the selected isoform proportions to sum to one before calculating diversity.}
 }
 \value{
-A ggplot object.
+A ggplot object. The \code{class} aesthetic reflects whether \code{diversity} is at or below \code{entropy.thresh}.
 }
 \description{
 Plots isoform diversity for one or more genes across cell groups.
+}
+\details{
+Diversity is calculated from pooled transcript counts within each
+group after applying \code{min.tx.cts} separately in that group. The entropy
+indices, \code{top.n} selection, optional renormalization, and classification
+thresholds follow \code{\link[=GetDiversity]{GetDiversity()}}. These are direct pooled estimates,
+rather than the bootstrap means returned by \code{\link[=RunDIV]{RunDIV()}}. Multiple \code{group.by}
+columns are joined with \verb{_}.
+\itemize{
+\item \code{"lollipop"}: Diversity by gene, with colored points for each group.
+\item \code{"pcoord"}: Diversity across groups, with a line for each gene.
+\item \code{"density"}: The distribution of gene-level diversity values in each group.
+}
+
+Point shapes in lollipop and parallel-coordinate plots indicate the
+entropy-based monoform/polyform class, not the number of effective isoforms.
+Supply an appropriate \code{entropy.thresh} when using an entropy order without
+a default classification threshold. Density plots summarize variation across
+genes, not cell-to-cell variation or bootstrap uncertainty.
+}
+\seealso{
+\code{\link[=GetDiversity]{GetDiversity()}}, \code{\link[=RunDIV]{RunDIV()}}
 }

@@ -6,12 +6,13 @@
 \usage{
 GetExpression(
   object,
-  transcripts,
+  transcripts = NULL,
   genes = NULL,
   group.by = NULL,
   group.subset = NULL,
   assay.use = "logcounts",
-  quiet = FALSE
+  quiet = FALSE,
+  cell.dispersion = FALSE
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ GetExpression(
 \item{assay.use}{Assay name to use.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
+
+\item{cell.dispersion}{Logical; if \code{TRUE}, summarize cell-to-cell expression across all cells in each group.}
 }
 \value{
 A data frame with the following columns:
@@ -35,10 +38,30 @@ A data frame with the following columns:
 \item{\code{group}}{The cell group being queried.}
 \item{\code{gene}}{The (associated) gene being queried.}
 \item{\code{transcript}}{The transcript being queried.}
-\item{\code{pct}}{Percentage of cells in \code{group} with expression of the transcript.}
+\item{\code{pct}}{Fraction of cells in \code{group} with expression of the transcript, on the \verb{[0, 1]} scale.}
 \item{\code{avgExpr}}{Average expression of the transcript across all cells in \code{group}.}
+\item{\code{cell.n}}{Number of cells used for cell-level summaries.}
+\item{\code{cell.expr.median}, \code{cell.expr.sd}, \code{cell.expr.iqr}}{Median, sample standard deviation, and interquartile range of cell-level expression.}
 }
+Dispersion columns are present as typed \code{NA} values when \code{cell.dispersion = FALSE}.
 }
 \description{
 Summarizes transcript detection and average expression by cell group.
+}
+\details{
+Supply either transcript IDs or gene IDs; when \code{genes} is supplied,
+all of its associated transcripts are summarized and \code{transcripts} is ignored.
+Queries use the active identifiers. Multiple \code{group.by} columns are joined
+with \verb{_}, and \code{group.subset} selects groups without pooling them.
+
+The mean expression and optional cell-level summaries use the selected assay
+across all cells in each group, including zeros. Detection (\code{pct}) is the
+fraction of cells with an assay value above zero. With \code{assay.use = "logcounts"},
+\code{avgExpr} is the mean of log-normalized values, not the logarithm of a mean.
+The requested assay must already exist; use \code{\link[=NormalizeCounts]{NormalizeCounts()}} to create it.
+This function summarizes expression without statistical testing or a minimum
+detection filter.
+}
+\seealso{
+\code{\link[=RunDEI]{RunDEI()}}, \code{\link[=PlotExpression]{PlotExpression()}}
 }

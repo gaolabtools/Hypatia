@@ -12,9 +12,13 @@ GetDiversity(
   entropy.use = "Tsallis",
   assay.use = "counts",
   entropy.thresh = NULL,
+  prop.thresh = 0.2,
   min.tx.cts = 1,
   order = NULL,
-  quiet = FALSE
+  quiet = FALSE,
+  cell.dispersion = FALSE,
+  top.n = NULL,
+  renormalize = FALSE
 )
 }
 \arguments{
@@ -30,27 +34,81 @@ GetDiversity(
 
 \item{assay.use}{Assay name to use.}
 
-\item{entropy.thresh}{Threshold used to classify genes as \code{"monoform"} or \code{"polyform"}. If \code{NULL}, a method-specific default is used.}
+\item{entropy.thresh}{Diversity index threshold used to classify genes as monoform or polyform. If \code{NULL}, a default is chosen from the entropy index. Default thresholds for Tsallis and Renyi are defined only at orders 3 and 2, respectively; other orders return \code{NA} classifications unless a threshold is supplied.}
+
+\item{prop.thresh}{Minimum within-gene transcript proportion used to define an effective isoform. Transcripts with proportions greater than or equal to this value are effective.}
 
 \item{min.tx.cts}{Minimum transcript counts required before diversity is calculated.}
 
-\item{order}{Entropy order. Corresponds to \code{q} for Tsallis and \code{alpha} for Renyi.}
+\item{order}{Entropy order. Corresponds to \code{q} for Tsallis and \code{alpha} for Renyi. At order 1, Tsallis and Renyi use their Shannon entropy limit, and NormalizedRenyi uses normalized Shannon entropy.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
+
+\item{cell.dispersion}{Logical; if \code{TRUE}, summarize cell-to-cell diversity among cells with positive retained-gene counts.}
+
+\item{top.n}{Optional number of the most abundant isoforms to include in diversity calculations. If \code{NULL}, all isoforms are included. Must be at least 2 when supplied.}
+
+\item{renormalize}{Logical; if \code{TRUE}, rescale the selected isoform proportions to sum to one before calculating diversity.}
 }
 \value{
 A data frame with the following columns:
 \describe{
 \item{\code{group}}{The cell group being queried.}
 \item{\code{gene}}{The gene being queried.}
-\item{\code{gene.pct}}{Percentage of cells in \code{group} with expression of the gene.}
-\item{\code{n.transcripts}}{Number of associated transcripts for the gene.}
+\item{\code{gene.pct}}{Fraction of cells in \code{group} with expression of the gene, on the \verb{[0, 1]} scale.}
+\item{\code{n.transcripts}}{Number of transcripts retained for the gene after count filtering in this group, before optional \code{top.n} selection.}
+\item{\code{n.effective}}{Number of transcripts with within-gene proportion greater than or equal to \code{prop.thresh}.}
 \item{\code{transcript}}{The associated transcript.}
 \item{\code{cts}}{Total counts of the transcript in \code{group}.}
 \item{\code{prop}}{The transcript proportion in \code{group}.}
 \item{\code{div}}{Isoform diversity of the gene in \code{group}.}
+\item{\code{div.class}}{\code{"monoform"} when \code{div} is at or below \code{entropy.thresh} and \code{"polyform"} otherwise.}
+\item{\code{cell.n}}{Number of gene-positive cells used for cell-level summaries.}
+\item{\code{cell.div.mean}, \code{cell.div.median}, \code{cell.div.sd}, \code{cell.div.iqr}}{Mean, median, sample standard deviation, and interquartile range of cell-level diversity.}
 }
+Dispersion columns are present as typed \code{NA} values when \code{cell.dispersion = FALSE}.
 }
 \description{
 Summarizes transcript proportions and isoform diversity for one or more genes.
+}
+\details{
+Counts are pooled within each cell group. Transcripts below
+\code{min.tx.cts} in that group are removed before calculating within-gene
+proportions and diversity. \code{gene.pct} is measured before this filtering.
+Multiple \code{group.by} columns are joined with \verb{_}; \code{group.subset} selects groups
+without pooling them. Genes with no detection in a group are omitted.
+
+The diversity indices use transcript proportions \code{p} and natural logarithms:
+\itemize{
+\item \code{"Shannon"}: \code{-sum(p * log(p))} over positive proportions.
+\item \code{"NormalizedShannon"}: Shannon entropy divided by \code{log(k)}, where \code{k} is
+the number of positive proportions.
+\item \code{"Tsallis"}: \code{(1 - sum(p^q)) / (q - 1)}, with default order \code{q = 3}.
+\item \code{"Renyi"}: \code{log(sum(p^alpha)) / (1 - alpha)}, with default order \code{alpha = 2}.
+\item \code{"NormalizedRenyi"}: Renyi entropy divided by \code{log(k)}.
+\item \code{"GiniSimpson"}: \code{1 - sum(p^2)}.
+\item \code{"InverseSimpson"}: \code{1 / sum(p^2)}.
+}
+
+Power sums use positive proportions. At order 1, Tsallis and Renyi use
+Shannon entropy, and NormalizedRenyi uses normalized Shannon entropy.
+Normalized indices return \code{NA} when at most one proportion is positive.
+If \code{top.n} is supplied, diversity uses the largest proportions; their sum
+is rescaled to one only when \code{renormalize = TRUE}. Neither option changes
+the reported transcript rows, \code{n.transcripts}, or \code{n.effective}.
+
+Monoform/polyform classes use \code{entropy.thresh}; effective isoform counts
+instead count proportions at or above \code{prop.thresh}. Default classification
+thresholds are 0.500 for Shannon, 0.243 for Tsallis at order 3, 0.435 for
+Renyi at order 2, 0.348 for GiniSimpson, 1.533 for InverseSimpson, and zero
+for normalized indices. Other Tsallis and unnormalized Renyi orders require
+an explicit threshold to obtain classifications.
+
+With \code{cell.dispersion = TRUE}, diversity is additionally calculated in each
+cell with positive retained-gene counts. For these cell-level summaries,
+undefined normalized diversity from a single detected isoform is set to zero.
+Pooled summaries are calculated directly, without bootstrap sampling.
+}
+\seealso{
+\code{\link[=RunDIV]{RunDIV()}}, \code{\link[=PlotDiversity]{PlotDiversity()}}
 }

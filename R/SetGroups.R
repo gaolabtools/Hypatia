@@ -7,6 +7,12 @@
 #' Character and factor columns are supported.
 #'
 #' @returns The object with `metadata(object)$active.group.id` updated.
+#' @details The selected character or factor column must contain no missing
+#' values and at least two observed groups. Labels containing spaces are
+#' supported. Downstream analysis and summary functions use this column when
+#' `group.by = NULL`; an explicit `group.by` overrides it. To group by a
+#' combination of metadata columns, pass those column names through `group.by`
+#' in the downstream function.
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment

@@ -14,7 +14,8 @@ RunDEI(
   only.pos = FALSE,
   transcripts = NULL,
   p.adj = "bonferroni",
-  quiet = FALSE
+  quiet = FALSE,
+  cell.dispersion = FALSE
 )
 }
 \arguments{
@@ -30,29 +31,71 @@ RunDEI(
 
 \item{min.pct}{Minimum fraction of cells in each group where the transcript must be detected.}
 
-\item{only.pos}{Logical; if \code{TRUE}, only transcripts with positive fold change will be reported.}
+\item{only.pos}{Logical; if \code{TRUE}, only transcripts with non-negative log2 fold change will be reported.}
 
 \item{transcripts}{Optional vector of active transcript IDs to test.}
 
 \item{p.adj}{P-value adjustment method. Must be one of \code{stats::p.adjust.methods}.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
+
+\item{cell.dispersion}{Logical; if \code{TRUE}, summarize cell-to-cell expression across all cells in each comparison group.}
 }
 \value{
-A data frame with the following columns:
+A list containing two data frames:
+
+\describe{
+\item{\verb{$data}}{A data frame of expression summaries with columns:
 \describe{
 \item{\code{group.1} & \code{group.2}}{The two cell groups being compared.}
 \item{\code{gene}}{The gene associated with the transcript being tested.}
 \item{\code{transcript}}{The transcript being tested.}
-\item{\code{pct.1}}{Percentage of cells in \code{group.1} with expression of the transcript.}
-\item{\code{pct.2}}{Percentage of cells in \code{group.2} with expression of the transcript.}
-\item{\code{avgExpr.1}}{Average expression of the transcript in \code{group.1}.}
-\item{\code{avgExpr.2}}{Average expression of the transcript in \code{group.2}.}
-\item{\code{log2FC}}{The log2 fold change in transcript expression between the two groups (\code{group.1} - \code{group.2}).}
+\item{\code{pct.1}, \code{pct.2}}{Fraction of cells in each group with expression of the transcript, on the \verb{[0, 1]} scale.}
+\item{\code{avgExpr.1}, \code{avgExpr.2}}{Mean expression of the transcript across all cells in each group.}
+\item{\code{cell.n.1}, \code{cell.n.2}}{Number of cells used for cell-level summaries in each group.}
+\item{\code{cell.expr.median.1}, \code{cell.expr.median.2}, \code{cell.expr.sd.1}, \code{cell.expr.sd.2}, \code{cell.expr.iqr.1}, \code{cell.expr.iqr.2}}{Median, sample standard deviation, and interquartile range of cell-level expression.}
+}
+Dispersion columns are present as typed \code{NA} values when \code{cell.dispersion = FALSE}.
+}
+\item{\verb{$stats}}{A data frame of statistical results with columns:
+\describe{
+\item{\code{group.1} & \code{group.2}}{The two cell groups being compared.}
+\item{\code{gene}}{The gene associated with the transcript being tested.}
+\item{\code{transcript}}{The transcript being tested.}
+\item{\code{log2FC}}{\code{log2(avgExpr.1 / avgExpr.2)} on the selected assay, without a pseudocount. With \code{"logcounts"}, this is the log2 ratio of mean log-normalized values.}
 \item{\code{pval}}{P-value from the Wilcoxon rank-sum test.}
 \item{\code{padj}}{Adjusted p-value, calculated separately for each group comparison.}
 }
 }
+}
+Rows in \verb{$data} are ordered by \code{group.1}, \code{group.2}, \code{gene}, and
+\code{transcript}. Rows in \verb{$stats} are ordered by \code{group.1}, \code{group.2},
+\code{padj}, \code{gene}, and \code{transcript}.
+}
 \description{
 Tests transcripts for differential isoform expression between cell groups.
+}
+\details{
+The selected assay must already exist; the default is \code{"logcounts"}
+from \code{\link[=NormalizeCounts]{NormalizeCounts()}}. Transcripts must be detected in at least \code{min.pct}
+of cells in both comparison groups before testing. Detection means a selected
+assay value above zero. A two-sided Wilcoxon rank-sum test compares the
+cell-level assay values, including zeros, using \code{matrixTests} with automatic
+exact/asymptotic p-value selection.
+
+\code{avgExpr} is the arithmetic mean on the selected assay, and \code{log2FC} is
+\code{log2(avgExpr.1 / avgExpr.2)} without a pseudocount. With \code{"logcounts"}, this
+compares mean log-normalized values. Optional cell-level dispersion summaries
+include every cell in each group. \code{only.pos = TRUE} retains non-negative
+\code{log2FC} values after p-value adjustment.
+
+Multiple \code{group.by} columns are joined with \verb{_}. Omitting both comparison
+arguments compares each group with the remaining cells; exactly two groups
+produce one comparison. Multiple labels on either side pool their cells.
+P-values are adjusted across tested transcripts separately within each
+comparison using Bonferroni by default. An error is returned if no transcripts
+pass detection filtering across all comparisons.
+}
+\seealso{
+\code{\link[=GetExpression]{GetExpression()}}, \code{\link[=PlotExpression]{PlotExpression()}}
 }

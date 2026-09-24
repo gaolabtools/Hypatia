@@ -8,7 +8,11 @@
 #' @param group.subset Optional vector of group labels to include.
 #' @param group.order Optional vector of group labels specifying plotting order.
 #' @param plot.type Plot type: `"stackedbar"`, `"bar"`, `"pie"`, or `"heatmap"`.
-#' @param colors A vector of colors to use for the plot.
+#' @param colors A vector of transcript colors, optionally named by transcript
+#'   ID, or gradient colors for heatmaps. If `NULL`, bars and pies use the shared
+#'   categorical palette: ten fixed colors, or the qualitative HCL `"Dark 3"`
+#'   palette for more than ten categories, with `"Other"` shown in gray.
+#'   Heatmaps use a white-purple-yellow proportion gradient.
 #' @param show.prop Logical; if `TRUE`, proportion labels will be included on the plot.
 #' @param nrow Number of facet rows.
 #' @param assay.use Assay name to use.
@@ -18,6 +22,21 @@
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
 #' @returns A ggplot object.
+#' @details Transcript counts for the requested gene are pooled within each
+#' group. A transcript is retained if it meets `min.tx.cts` in at least one
+#' selected group; proportions are then calculated from retained gene totals.
+#' Transcripts below `min.tx.prop` in every selected group are combined into
+#' `"Other"`. Groups with zero retained counts are omitted.
+#'
+#' - `"stackedbar"`: One stacked bar per group showing isoform composition.
+#' - `"bar"`: Separate transcript bars, with one panel per group.
+#' - `"pie"`: One pie chart per group showing isoform composition.
+#' - `"heatmap"`: Transcript-by-group tiles colored by proportion.
+#'
+#' `show.prop = TRUE` adds proportion labels. Gene and transcript labels use
+#' the active identifiers, and multiple `group.by` columns are joined with `_`.
+#' These plots summarize pooled counts and do not perform differential testing.
+#' @seealso [GetUsage()], [RunDIU()]
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment
@@ -272,8 +291,7 @@ PlotUsage <- function(
         scale_fill_manual(values = colors, name = active.transcript.id)
     } else {
       n_colors <- length(unique(plotdata$transcripts_query))
-      colors <- c("#FBB463", "#80B1D3", "#F47F72", "#BDBAD8", "#FBF8B4", "#8DD1C6")
-      colors <- .DefaultDiscreteColors(n_colors, colors)
+      colors <- .DefaultGroupColors(n_colors)
       if ("Other" %in% plotdata$transcripts_query) {
         colors[length(colors)] <- "#9E9E9E"
       }

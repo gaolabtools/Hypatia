@@ -17,8 +17,17 @@ RunDIU(
   genes = NULL,
   only.valid = FALSE,
   simulate.p = FALSE,
+  permutation = FALSE,
+  perm.iter = 1000,
+  perm.statistics = c("chisq", "max_delta"),
+  bootstrap = TRUE,
+  boot.iter = 100,
+  boot.fraction = 0.6,
+  boot.ncells = NULL,
+  boot.conf = 0.95,
   p.adj = "BH",
-  quiet = FALSE
+  quiet = FALSE,
+  cell.dispersion = FALSE
 )
 }
 \arguments{
@@ -32,23 +41,45 @@ RunDIU(
 
 \item{assay.use}{Assay name to use.}
 
-\item{method.use}{Statistical test: \code{"Chisq"} or \code{"Fisher"}.}
+\item{method.use}{Statistical test: uncorrected Pearson Chi-square (\code{"Chisq"})
+or Fisher's exact test (\code{"Fisher"}).}
 
 \item{min.gene.pct}{Minimum fraction of cells in each group where the gene must be detected.}
 
 \item{min.gene.cts}{Minimum total gene counts required in each group.}
 
-\item{min.tx.cts}{Minimum transcript counts required for a transcript to be included in contingency tables.}
+\item{min.tx.cts}{Minimum total transcript counts in at least one comparison group for inclusion in contingency tables.}
 
 \item{genes}{Optional vector of active gene IDs to test. Genes are still subject to filtering.}
 
-\item{only.valid}{Logical; if \code{TRUE}, only tests with valid Chi-square approximations will be reported and corrected for multiple testing.}
+\item{only.valid}{Logical; if \code{TRUE}, report only genes with valid Chi-square approximations.}
 
-\item{simulate.p}{Logical; if \code{TRUE}, p-values are computed using a Monte Carlo simulation. Note: Fisher's exact test always uses simulation.}
+\item{simulate.p}{Logical; if \code{TRUE}, request Monte Carlo p-values. Fisher's test always requests simulation, which \code{stats::fisher.test()} uses for tables larger than 2 by 2.}
+
+\item{permutation}{Logical; if \code{TRUE}, calculate empirical p-values by permuting cell labels while preserving comparison-group sizes.}
+
+\item{perm.iter}{Number of cell-label permutations used to construct the empirical null distribution.}
+
+\item{perm.statistics}{Character vector of gene-level statistics to evaluate
+for each cell-label permutation. Options are the uncorrected Pearson
+Chi-square statistic (\code{"chisq"}) and the maximum absolute transcript
+proportion difference (\code{"max_delta"}).}
+
+\item{bootstrap}{Logical; if \code{TRUE}, bootstrap cells within each comparison group to estimate uncertainty in transcript proportion differences.}
+
+\item{boot.iter}{Number of bootstrap iterations.}
+
+\item{boot.fraction}{Proportion of cells sampled from each comparison group per bootstrap iteration.}
+
+\item{boot.ncells}{Optional fixed number of cell draws sampled with replacement from each comparison group per bootstrap iteration. Cannot be supplied together with \code{boot.fraction}.}
+
+\item{boot.conf}{Confidence level for percentile bootstrap intervals.}
 
 \item{p.adj}{P-value adjustment method. Must be one of \code{stats::p.adjust.methods}.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
+
+\item{cell.dispersion}{Logical; if \code{TRUE}, summarize cell-to-cell transcript proportion dispersion among cells with positive retained-gene counts.}
 }
 \value{
 A list containing two data frames:
@@ -59,15 +90,20 @@ A data frame of summarized data with columns:
 \describe{
 \item{\code{group.1} & \code{group.2}}{The two cell groups being compared.}
 \item{\code{gene}}{The gene being tested.}
-\item{\code{gene.pct.1}}{Percentage of cells in \code{group.1} with expression of the gene.}
-\item{\code{gene.pct.2}}{Percentage of cells in \code{group.2} with expression of the gene.}
+\item{\code{gene.pct.1}}{Fraction of cells in \code{group.1} with expression of the gene, on the \verb{[0, 1]} scale.}
+\item{\code{gene.pct.2}}{Fraction of cells in \code{group.2} with expression of the gene, on the \verb{[0, 1]} scale.}
 \item{\code{transcript}}{The associated transcript.}
 \item{\code{cts.1}}{Total counts of the transcript across all cells in \code{group.1}.}
 \item{\code{cts.2}}{Total counts of the transcript across all cells in \code{group.2}.}
 \item{\code{prop.1}}{Transcript proportion for \code{group.1}.}
 \item{\code{prop.2}}{Transcript proportion for \code{group.2}.}
 \item{\code{prop.diff}}{The difference in transcript proportions between groups (\code{group.1} - \code{group.2}).}
+\item{\code{cell.n.1}, \code{cell.n.2}}{Number of gene-positive cells used for cell-level summaries in each group.}
+\item{\code{cell.prop.mean.1}, \code{cell.prop.mean.2}, \code{cell.prop.median.1}, \code{cell.prop.median.2}, \code{cell.prop.sd.1}, \code{cell.prop.sd.2}, \code{cell.prop.iqr.1}, \code{cell.prop.iqr.2}}{Mean, median, sample standard deviation, and interquartile range of cell-level transcript proportions.}
+\item{\code{cell.prop.zero.frac.1}, \code{cell.prop.zero.frac.2}}{Fraction of gene-positive cells in which the transcript is not detected.}
+\item{\code{boot.prop.1}, \code{boot.prop.2}, \code{boot.prop.diff}}{List-columns containing bootstrap proportions and differences. Each entry is an empty numeric vector when \code{bootstrap = FALSE}.}
 }
+Cell-dispersion columns are present as typed \code{NA} values when \code{cell.dispersion = FALSE}.
 }
 
 \item{\verb{$stats}}{
@@ -75,16 +111,72 @@ A data frame containing statistical results with columns:
 \describe{
 \item{\code{group.1} & \code{group.2}}{The two cell groups being compared.}
 \item{\code{gene}}{The gene being tested.}
-\item{\code{max.prop.diff}}{The largest absolute difference in transcript proportions between \code{group.1} and \code{group.2}.}
+\item{\code{max.prop.diff}}{The signed transcript-proportion difference (\code{group.1} - \code{group.2}) for the transcript with the greatest absolute difference.}
 \item{\code{transcript}}{The transcript associated with \code{max.prop.diff}.}
-\item{\code{pval}}{P-value from the selected statistical test.}
-\item{\code{padj}}{Adjusted p-value.}
-\item{\code{effect.size}}{Effect size of the test, measured as Cramer's V.}
-\item{\code{approx}}{Indicates whether the Chi-square approximation is valid ("valid") or potentially unreliable ("warning"), based on whether at least 80\% of transcript counts of the contingency table exceed 5.}
+\item{\code{pval}}{P-value from the selected statistical test. Chi-square
+tests use the uncorrected Pearson statistic.}
+\item{\code{padj}}{Adjusted p-value, calculated separately within each comparison (default: Benjamini-Hochberg).}
+\item{\code{pval.perm}}{Empirical p-value from cell-label permutation using
+the uncorrected Pearson Chi-square statistic. Values are \code{NA} when
+\code{permutation = FALSE} or \code{"chisq"} is not requested.}
+\item{\code{padj.perm}}{Adjusted empirical Chi-square permutation p-value.}
+\item{\code{pval.perm.delta}}{Empirical gene-level p-value from cell-label
+permutation using the maximum absolute transcript proportion difference.
+Values are \code{NA} when \code{permutation = FALSE} or \code{"max_delta"} is not
+requested.}
+\item{\code{padj.perm.delta}}{Adjusted empirical maximum-delta permutation
+p-value.}
+\item{\code{cramers.v}}{Cramer's V calculated from the uncorrected Pearson
+Chi-square statistic.}
+\item{\code{approx}}{A count-based heuristic: \code{"valid"} when more than 80\% of observed contingency-table counts exceed 5 and all are positive; \code{"warning"} otherwise. This does not check expected counts. \code{NA} for Fisher's test.}
+\item{\code{boot.prop.diff.mean}, \code{boot.prop.diff.lower}, \code{boot.prop.diff.upper}}{Bootstrap mean and percentile confidence interval for the transcript associated with \code{max.prop.diff}. Values are \code{NA} when \code{bootstrap = FALSE}.}
+\item{\code{boot.valid.iter}}{Number of finite bootstrap differences used for the summaries.}
 }
 }
 }
+Rows in \verb{$data} are ordered by \code{group.1}, \code{group.2}, \code{gene}, and
+\code{transcript}. Rows in \verb{$stats} are ordered by \code{group.1}, \code{group.2},
+\code{padj}, \code{gene}, and \code{transcript}.
 }
 \description{
 Tests genes for differential isoform usage between cell groups.
+}
+\details{
+Genes must meet \code{min.gene.pct} and \code{min.gene.cts} in both comparison
+groups. Transcripts are retained when their total counts meet \code{min.tx.cts}
+in either group, and a gene must retain at least two transcripts. Counts are
+pooled into a transcript-by-group contingency table for each gene.
+\itemize{
+\item \code{"Chisq"}: Pearson Chi-square testing without continuity correction.
+\code{simulate.p = TRUE} requests Monte Carlo p-values. \code{only.valid = TRUE}
+restricts testing to genes passing the observed-count heuristic reported
+in \code{approx}.
+\item \code{"Fisher"}: Fisher's test, requesting Monte Carlo p-values for tables
+larger than 2 by 2. Two-by-two tables use the exact calculation.
+\code{only.valid} is not applied with this method.
+}
+
+With \code{permutation = TRUE}, cell labels are shuffled within each comparison
+while preserving group sizes and the retained transcript set. \code{perm.statistics}
+selects the Pearson Chi-square statistic, the maximum absolute transcript
+proportion difference, or both. Permutation p-values are returned separately
+from the selected contingency-table test's p-values.
+
+With \code{bootstrap = TRUE}, cells are sampled with replacement within each
+group. Each iteration draws \code{ceiling(boot.fraction * ncol(group))} cells,
+or \code{boot.ncells} when supplied. Percentile intervals summarize the transcript
+with the largest observed absolute proportion difference; \code{max.prop.diff}
+retains its sign. Optional \code{cell.dispersion} summaries describe proportions
+among cells with positive retained-gene counts, separately from bootstrapping.
+
+Multiple \code{group.by} columns are joined with \verb{_}. Omitting both comparison
+arguments compares each group with the remaining cells; exactly two groups
+produce one comparison. Multiple labels in \code{group.1} or \code{group.2} pool cells
+on that side. P-values are adjusted separately within each comparison and
+each test family, using Benjamini-Hochberg by default. Call \code{set.seed()} for
+reproducible resampling results; no seed is set internally. An error is
+returned if no genes pass filtering across all comparisons.
+}
+\seealso{
+\code{\link[=GetUsage]{GetUsage()}}, \code{\link[=PlotUsage]{PlotUsage()}}
 }

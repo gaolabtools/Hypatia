@@ -7,12 +7,12 @@ date-format: short
 title-block-banner: true
 format:
   html:
-    theme: flatly
+    theme: litera
     toc: true
     toc-title: CONTENTS
     toc-location: left
     toc-depth: 3
-    toc-expand: 2
+    toc-expand: true
     code-copy: true
     code-overflow: scroll
     code-fold: false
@@ -29,33 +29,118 @@ editor_options:
   chunk_output_type: console
 vignette: >
   %\VignetteIndexEntry{Hypatia}
-  %\VignetteEngine{quarto::format}
   %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{quarto::format}
 ---
 
 <style>
-h1.title {
-  color: white;
+/* Keep wide data-frame outputs readable on smaller screens. */
+.cell-output-stdout,
+.cell-output-display {
+  max-width: 100%;
+  overflow-x: auto;
 }
+
+.cell-output-stdout pre,
+.cell .sourceCode pre {
+  width: max-content;
+  min-width: 100%;
+  white-space: pre;
+}
+
+.cell .sourceCode {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.cell-output-display table {
+  font-size: 0.9rem;
+}
+
+.hypatia-table-title {
+  text-align: left;
+  font-size: 0.85rem;
+  margin: 1rem 0 0.35rem;
+}
+
+.hypatia-table-title p {
+  margin: 0;
+}
+
+.hypatia-table-title code {
+  color: inherit;
+  background: transparent;
+  padding: 0;
+}
+
+.hypatia-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.hypatia-table-scroll:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.hypatia-table-scroll table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.hypatia-table-scroll th,
+.hypatia-table-scroll td {
+  white-space: nowrap;
+}
+
+.cell-output-display th,
+.cell-output-display td {
+  padding: 0.35rem 0.5rem;
+}
+
+.no-underline {
+  text-decoration: none;
+}
+
+main.content {
+  padding-bottom: 3rem;
+}
+
+main.content section.level1 {
+  margin-top: 2.5rem;
+}
+
+main.content section.level2,
+main.content section.level3 {
+  margin-top: 1.75rem;
+}
+
+.cell,
+.callout,
+.panel-tabset {
+  margin-bottom: 1.25rem;
+}
+
 </style>
 
 
-## Background
+# Background
 
-RNA isoforms diversify the coding capacity of the genome and have significant implications in health and disease. Long-read single-cell RNA-sequencing (LR-scRNAseq) enables the investigation of RNA isoforms at cell type resolution. Hypatia is a computational suite in R for data analysis across 3 modules: 1) isoform usage, which identifies differential isoform usage events (DIUs), 2) isoform diversity, which identifies differential isoform diversity events (DIVs), and 3) isoform expression, which identifies differentially expressed isoforms (DEIs). 
+RNA isoforms expand the coding genome and have significant implications in health and disease. Long-read single-cell RNA-sequencing (LR-scRNAseq) enables the investigation of RNA isoforms at cell type resolution. Hypatia is a computational suite in R to support isoform analysis across 3 modules: 1) isoform usage, which identifies differential isoform usage (DIU) events, 2) isoform diversity, which identifies differential isoform diversity (DIV) events, and 3) isoform expression, which identifies differentially expressed isoform (DEI) events.
 
 Check out our <a href="https://www.biorxiv.org/content/10.64898/2026.01.13.699341v2" target="_blank">*preprint*</a> for more details on Hypatia. If you found this tool useful in your research, please remember to cite us:
 
 ```default
 Pan, T., Shiau, C. K., Lu, L., Wang, C., Wang, M., He, Y., Bhimaraj, A., Brat, D., Huse, J.,
-Jessica Li, J., & Gao, R. (2026). Hypatia: Comparative Isoform Profiling Across Cell Populations
+Li, J., & Gao, R. (2026). Hypatia: Comparative Isoform Profiling Across Cell Populations
  from Long-Read Single-Cell Transcriptomes. bioRxiv : the preprint server for biology,
  2026.01.13.699341. https://doi.org/10.64898/2026.01.13.699341
 ```
 
-# Setup
-
-## Installation
+# {{< fa box >}} Installation {#installation}
 
 Hypatia is an R package available through GitHub:
 
@@ -69,36 +154,72 @@ if (!requireNamespace("devtools", quietly = TRUE)) {
 devtools::install_github("gaolabtools/Hypatia")
 ```
 
-The following dependencies will be installed if they are not already present: checkmate, dplyr (>= 1.0.0), ggnewscale, ggplot2, Matrix, patchwork, purrr, S4Vectors, SingleCellExperiment, SummarizedExperiment, tibble, tidyr, and matrixTests.
+Hypatia requires R 4.1 or later. The following dependencies will be installed if they are not already present: checkmate, dplyr (>= 1.0.0), ggnewscale, ggplot2 (>= 3.5.0), GenomicRanges, Matrix, patchwork, purrr, S4Vectors, SingleCellExperiment, SummarizedExperiment, tibble, tidyr, and matrixTests.
 
 ```{r load}
 #| eval: true
 #| echo: false
 
 library(Hypatia)
+set.seed(1024)
 ```
 
-## Preparing the input data
+```{r table-display}
+#| include: false
+
+preview_table <- function(data) {
+  preview <- as.data.frame(head(data, 6))
+  for (column in names(preview)) {
+    if (is.list(preview[[column]])) {
+      preview[[column]] <- vapply(preview[[column]], function(values) {
+        if (length(values) == 0L) return("numeric(0)")
+        shown <- paste(format(signif(head(values, 3), 3), trim = TRUE), collapse = ", ")
+        if (length(values) > 3L) {
+          paste0(shown, ", ... (", length(values), " values)")
+        } else {
+          shown
+        }
+      }, character(1))
+    } else if (grepl("^(pval|padj)", column) && is.numeric(preview[[column]])) {
+      preview[[column]] <- format.pval(preview[[column]], digits = 3, eps = 0)
+    }
+  }
+  table <- knitr::kable(preview, format = "html", digits = 3,
+                        row.names = FALSE)
+  knitr::asis_output(paste0(
+    '<div class="hypatia-table-scroll" role="region" aria-label="Scrollable result table" tabindex="0">',
+    table,
+    '</div>'
+  ))
+}
+```
+
+# Input data
 
 Hypatia requires 3 inputs: 
 
-1. **Single-cell isoform expression matrix**<br> 
-A data frame or matrix of raw isoform counts. Row names are transcript IDs and column names are cell IDs.
+1. **Single-cell isoform expression matrix**
 
-2. **Cell-level metadata**<br>
-A data frame with at least one column of cell annotations (cell types, clusters) necessary for differential analysis. Row names are cell IDs matching the count matrix.
+   A numeric data frame, dense matrix, or sparse `dgCMatrix` of non-negative raw isoform counts. Row names are unique transcript IDs and column names are unique cell IDs.
 
-3. **Transcript-level metadata**<br>
-A data frame with at least one column containing gene identifiers associated with transcripts in the count matrix. Row names are transcript IDs matching the count matrix.
+2. **Cell-level metadata**
 
-### Tutorial data
+   A data frame with at least one column of cell annotations (cell types, clusters) necessary for differential analysis. Row names are cell IDs matching the count matrix.
 
-For the tutorial, we analyze single-cell long-read RNA-seq data of a human glioblastoma (GBM) tumor. Raw reads were processed using <a href="https://github.com/gaolabtools/scNanoGPS" target="_blank">*scNanoGPS*</a>, in which <a href="https://github.com/ablab/IsoQuant" target="_blank">*IsoQuant*</a> performed isoform quantification. Gene expression data were analyzed beforehand in <a href="https://satijalab.org/seurat/" target="_blank">*Seurat*</a>, revealing 8 cell types: astrocytes, oligodendrocyte precursor cells (OPCs), tumor, microglia, vascular, GABAergic neurons (GABA neuron), and glutamatergic neurons (Glut neuron):
+3. **Transcript-level metadata**
+
+   A data frame with at least one column containing gene identifiers associated with transcripts in the count matrix. Row names are transcript IDs matching the count matrix.
+
+## Tutorial data
+
+For the tutorial, we analyze single-cell long-read RNA-seq data of a human glioblastoma (GBM) tumor. Raw reads were processed using <a href="https://github.com/gaolabtools/scNanoGPS" target="_blank" class="no-underline">*scNanoGPS*</a>, in which <a href="https://github.com/ablab/IsoQuant" target="_blank" class="no-underline">*IsoQuant*</a> performed isoform quantification. Gene expression data were analyzed beforehand in <a href="https://satijalab.org/seurat/" target="_blank" class="no-underline">*Seurat*</a>, revealing 8 cell types: astrocytes, oligodendrocytes, oligodendrocyte precursor cells (OPCs), tumor, microglia, vascular, GABAergic neurons (GABA neuron), and glutamatergic neurons (Glut neuron):
 
 ```{r celltypes-umap}
 #| echo: false
 #| fig-height: 4
 #| fig-align: center
+#| fig-cap: "Gene-expression UMAP of the GBM tutorial cells, colored by the eight cell-type annotations used for isoform analysis."
+#| fig-alt: "UMAP scatter plot of GBM cells with eight labeled cell types, including tumor, glial, neuronal, and vascular populations."
 
 # plot
 .pt <- getFromNamespace(".pt", "ggplot2")
@@ -125,6 +246,11 @@ ggplot2::ggplot(plotdata) +
 
 The following input data for the tutorial is available (lazy-loaded) after the package is loaded into the environment:
 
+- `gbm_countData`: The raw single-cell isoform expression matrix consisting of 56,642 isoforms from 5,043 cells.
+- `gbm_colData`: The cell-level metadata containing the columns `cell_type`, `umap_1`, and `umap_2` derived from gene expression analysis.
+- `gbm_rowData`: The transcript-level metadata with columns `gene_id`, `gene_name`, and `transcript_name`. Also contains various isoform QC metrics from <a href="https://github.com/ConesaLab/SQANTI3" target="_blank" class="no-underline">*SQANTI3*</a> pipeline (*strongly recommended*)
+- `gbm_gtf`: Transcript structure file for reference.
+
 ```{r load-example}
 #| eval: false
 
@@ -134,10 +260,7 @@ gbm_countData
 gbm_colData
 gbm_rowData
 gbm_gtf
-
 ```
-
-The raw single-cell isoform expression matrix `gbm_countData` consists of 56,642 isoforms from 5,043 cells.
 
 ```{r expr-str}
 #| eval: true
@@ -148,8 +271,6 @@ The raw single-cell isoform expression matrix `gbm_countData` consists of 56,642
 str(gbm_countData)
 ```
 
-The cell-level metadata `gbm_colData` contains the columns `cell_type`, `umap_1`, and `umap_2`, which were all extracted from the *Seurat* object from gene expression analysis. The gene expression-derived `umap_1` and `umap_2` will be used for visualizations later. 
-
 ```{r cellmeta-str}
 #| eval: true
 #| collapse: true
@@ -158,8 +279,6 @@ The cell-level metadata `gbm_colData` contains the columns `cell_type`, `umap_1`
 
 str(gbm_colData)
 ```
-
-The transcript-level metadata `gbm_rowData` has the column `gene_id` that contains the associated genes for each transcript. Additional columns `gene_name` and `transcript_name` are included for easy viewing in the downstream analysis. The remaining columns hold various isoform QC metrics from running the <a href="https://github.com/ConesaLab/SQANTI3" target="_blank">*SQANTI3*</a> pipeline. We *strongly recommend* providing these, or similar metrics, to improve downstream isoform filtering. 
 
 ```{r transcriptmeta-str}
 #| eval: true
@@ -170,18 +289,25 @@ The transcript-level metadata `gbm_rowData` has the column `gene_id` that contai
 str(gbm_rowData)
 ```
 
+```{r gtf-str}
+#| eval: true
+#| collapse: true
+#| code-fold: true
+#| code-summary: gbm_gtf
+
+str(gbm_gtf)
+```
+
 ::: {.callout-note icon="true" appearance="simple"}
-For the detailed code used to prepare the individual metadata, see [Utilities](#utilities). 
+For the detailed code used to prepare the individual metadata, see [Extras](#extras).
 :::
 
 
 # 1. Create the *SCE* object
 
-Hypatia uses the <a href="https://www.bioconductor.org/packages/devel/bioc/vignettes/SingleCellExperiment/inst/doc/intro.html" target="_blank">*SingleCellExperiment*</a> object, which provides a standardized framework for storing and organizing single-cell data.
-
 ## CreateSCE
 
-After the input data are prepared, the *SCE* object can be created using the function `CreateSCE()`. 
+Hypatia uses the <a href="https://www.bioconductor.org/packages/devel/bioc/vignettes/SingleCellExperiment/inst/doc/intro.html" target="_blank" class="no-underline">*SingleCellExperiment*</a> object, which provides a standardized framework for storing and organizing single-cell data. After the input data are prepared, the *SCE* object can be created using the function `CreateSCE()`.
 
 ```{r createSCE}
 #| eval: true
@@ -204,13 +330,14 @@ gbm <- CreateSCE(
 gbm
 ```
 
-::: {.callout-important icon="true" appearance="simple"}
-1. By default, `CreateSCE()` searches for a column called `"gene_id"` in `rowData` for associated genes. This can be changed with `active.gene.id`. <br>
+::: {.callout-note icon="true" appearance="simple"}
+
+1. By default, `CreateSCE()` searches for a column called `"gene_id"` in `rowData` for associated genes. This can be changed with `active.gene.id`.
 2. The row name orders in `rowData` and `colData` must match the row and column name orders in `countData`, respectively.
 :::
 
 
-## Object slots
+### SCE slots
 
 Data within SCE objects are stored inside 'slots'. The main slots that are utilized by Hypatia are `assays` (count data), `colData` (cell-level metadata), and `rowData` (transcript-level metadata). They can be accessed from the object as shown:
 
@@ -228,36 +355,35 @@ colData(gbm)
 rowData(gbm)
 ```
 
-Hypatia's `CreateSCE()` will also create the following new variables in `colData` and `rowData`:
-
-- (colData) `project`: Project name (default: `"Project"`).
-- (colData) `nCount`: Number of **isoform** counts for the cell.
-- (colData) `nTranscript`: Number of **unique isoforms** detected in the cell.
-- (colData) `nGene`: Number of **unique genes** detected in the cell. 
-- (rowData) `nCell`: Number of **cells** with detection of the isoform. 
-
 ```{r slot-coldata}
 #| eval: true
 #| collapse: true
-#| code-fold: show
+#| code-fold: true
 #| code-summary: colData
 
-colData(gbm) |> head()
+head(colData(gbm))
 ```
 
 ```{r slot-rowdata}
-#| echo: true
+#| eval: true
 #| collapse: true
-#| code-fold: show
+#| code-fold: true
 #| code-summary: rowData
 
-rowData(gbm) |> head()
+head(rowData(gbm))
 ```
 
+You may notice that `CreateSCE()` adds the following new variables to `colData` and `rowData`:
 
-## Object metadata
+- `project`: Project name (default: `"Project"`). (colData)
+- `nCount`: Number of **isoform** counts for the cell. (colData)
+- `nTranscript`: Number of **unique isoforms** detected in the cell. (colData)
+- `nGene`: Number of **unique genes** detected in the cell. (colData)
+- `nCell`: Number of **cells** with detection of the isoform. (rowData)
 
-The `metadata()` function can be used to access the metadata of the **_SCE_ object**, and dictates how the object interacts with Hypatia's functions. These include important settings such as the default cell groups and the gene/transcript names to report. By default, the only defined setting is `active.gene.id`, which was set by `CreateSCE()`. 
+### SCE metadata
+
+`metadata()` can be used to access the object's metadata that dictates how the object interacts with Hypatia's functions. These include important settings such as the default cell grouping variable and the gene/transcript names to report. In this example, only `active.gene.id` has a nonempty value after `CreateSCE()`.
 
 ```{r metadata}
 #| echo: true
@@ -267,9 +393,11 @@ The `metadata()` function can be used to access the metadata of the **_SCE_ obje
 metadata(gbm)
 ```
 
-An empty `active.transcript.id` indicates that the row names of the count matrix (e.g., Ensembl transcript IDs in the tutorial data) should be used. An empty `active.group.id` means that cell identities for grouping (e.g., `cell_type`) must be specified in downstream functions. The `active.group.id` can be set in advance to avoid repeatedly defining the grouping variable later on.
+- An empty `active.transcript.id` indicates that the row names of the count matrix (e.g., Ensembl transcript IDs in the tutorial data) should be used.
+- An empty `active.group.id` means that cell identities for grouping (e.g., `cell_type`) must be specified in downstream functions.
+- The `active.group.id` can be set in advance to avoid repeatedly defining the grouping variable later on.
 
-Below, we update the metadata for active gene IDs, transcript IDs, and cell groups.
+Below, we update the metadata for active gene IDs, transcript IDs, and cell groups using the provided `rowData` and `colData` variables.
 
 ```{r setfunctions}
 #| eval: true
@@ -291,8 +419,6 @@ gbm <- SetGroups(gbm, "cell_type")
 metadata(gbm)
 ```
 
-`gene_name` and `transcript_name` were both provided in the object's `rowData` slot. The active cell grouping variable is set to `cell_type` of the object's `colData` slot.
-
 ::: {.callout-note icon="true" appearance="simple"}
 The object metadata can be changed at any point in the workflow. Providing alternative gene and transcript IDs are **optional**. 
 :::
@@ -300,9 +426,11 @@ The object metadata can be changed at any point in the workflow. Providing alter
 
 # 2. Quality control
 
+After the *SCE* object is created, the next step is to perform QC the lowly expressed transcripts and low quality cells.
+
 ## Transcript filtering
 
-To filter isoforms, `SubsetTranscripts()` can be used to subset the *SCE* object by the object's `rowData` (transcript-level) variables. Isoforms that are not expressed in at least 3 cells are removed according to the variable `nCell` below. 
+`SubsetTranscripts()` filters the *SCE* object using `rowData` (transcript-level) variables. Isoforms that are not expressed in at least 3 cells are removed according to the variable `nCell` below.
 
 ```{r subsettranscripts-ncell}
 #| eval: true
@@ -311,7 +439,7 @@ To filter isoforms, `SubsetTranscripts()` can be used to subset the *SCE* object
 gbm <- SubsetTranscripts(gbm, subset = nCell >= 3)
 ```
 
-Isoforms can also be filtered based on the provided transcript-level *SQANTI* metrics:
+Below shows isoform filtering using the provided *SQANTI* metrics:
 
 ```{r subsettranscripts-sqanti}
 #| eval: true
@@ -326,18 +454,22 @@ gbm <- SubsetTranscripts(
 
 ## Cell filtering
 
-Users can run `PlotCellQC()` to visualize the distributions of the default variables `nTranscript`, `nGene`, and `nCount` (where `nCount` is the number of isoform counts per cell).
+`PlotCellQC()` visualizes the distributions of `nTranscript`, `nGene`, and `nCount` (where `nCount` is the number of isoform counts per cell).
+
+Cell-group colors share a categorical palette across `PlotCellQC()`, `PlotDiversity()` (lollipop and density), and `PlotExpression()` (violin and heatmap annotations). For more than ten groups, a qualitative HCL palette is used. Supply a named `colors` vector to keep specific cell types the same color across plots with different group subsets or orders.
 
 ```{r plotcellqc}
 #| eval: true
 #| message: false
 #| fig-width: 13
 #| fig-align: center
+#| fig-cap: "Cell-level QC after transcript filtering. Compare detected isoforms, detected genes, and total isoform counts before choosing cell-filtering thresholds."
+#| fig-alt: "QC panels showing distributions of detected transcripts, detected genes, and total isoform counts per cell."
 
 PlotCellQC(gbm)
 ```
 
-Afterwards, `SubsetCells()` can filter cells using these or other `colData` (cell-level) variables. Cells with fewer than 50 detected isoforms are removed below.
+Afterwards, `SubsetCells()` can filter cells using these or other `colData` variables. Cells with fewer than 50 detected isoforms are removed below.
 
 ```{r subsetcells}
 #| eval: true
@@ -346,7 +478,7 @@ Afterwards, `SubsetCells()` can filter cells using these or other `colData` (cel
 gbm <- SubsetCells(object = gbm, subset = nTranscript >= 50)
 ```
 
-`SubsetCells()` can also be used to subset the object for reasons unrelated to QC. The following are examples of isolating and removing tumor cells from the `cell_type` annotation.
+`SubsetCells()` can also be used to subset the object for other purposes. The following are examples of isolating and removing tumor cells from the `cell_type` annotation.
 
 ```{r subsetcells-tumor}
 #| eval: false
@@ -367,31 +499,56 @@ Vectors of cell IDs or active transcript IDs can also be passed through the `cel
 
 Hypatia provides **3** modules for differential isoform analysis:
 
--   **Isoform Usage**: Identifies differential isoform usage (DIU) events, marked by significant differences in isoform ratios of genes across cell groups.
+-   **Isoform Usage**: A measure of isoform *shift*. Identifies differential isoform usage (DIU) events, marked by significant differences in isoform ratios of genes across cell groups.
 
--   **Isoform Diversity**: Computes isoform diversity, classifies genes as 'monoform' (low diversity) or 'polyform' (high diversity), and performs pairwise comparisons of classifications. Genes having diverging classifications across cell groups are considered DIVs.
+-   **Isoform Diversity**: A measure of isoform *complexity*. Tests differences in gene-level isoform diversity between cell groups. Monoform and polyform classifications provide an additional description of diversity.
 
--   **Isoform Expression**: Identifies differentially expressed isoforms (DEIs) by comparing the mean normalized expression of isoforms across groups of cells.
+-   **Isoform Expression**: A measure of isoform *abundance*. Identifies differentially expressed isoforms (DEIs) from cell-level normalized expression values.
 
 
-| Method     | Analysis          | Visualization | Data retrieval |
+| Method     | Analysis          | Data retrieval | Visualization |
 |--------------------|-------------------------|-------|-------|
-| Isoform Usage        | `RunDIU()`|   `PlotUsage()`|  `GetUsage()` |
-| Isoform Diversity | `RunDIV()`| `PlotDiversity()` | `GetDiversity()` |
-| Isoform Expression  | `NormalizeCounts()`, `RunDEI()` |  `PlotExpression()` | `GetExpression()` |
+| Isoform Usage        | `RunDIU()`| `GetUsage()` | `PlotUsage()` |
+| Isoform Diversity | `RunDIV()`| `GetDiversity()` | `PlotDiversity()` |
+| Isoform Expression  | `NormalizeCounts()`, `RunDEI()` | `GetExpression()` | `PlotExpression()` |
 
-All three `Run*()` functions accept `group.by` as one or more `colData` column names. If `group.by` is omitted, Hypatia uses `metadata(object)$active.group.id`; multiple columns are combined with `_` in output labels. Column names containing spaces are supported when passed as strings. The `p.adj` argument accepts exact method names from `stats::p.adjust.methods`.
+Each analysis module has three complementary function families: 
+<br>`Run*()` tests differences between cell groups and returns summaries in `$data` and statistical results in `$stats`.
+<br>`Get*()` retrieves summaries for genes or transcripts of interest without testing.
+<br>`Plot*()` visualizes usage, diversity, or expression. 
 
+The `Get*()` and `Plot*()` functions take an *SCE* object directly and do not require a preceding `Run*()` analysis.
 
 ## Isoform Usage
 
 Isoform usage refers to the relative abundances of transcript isoforms produced by a single gene. The usage of alternative isoforms is reported to vary across cell types, conditions, and developmental stages. Differential isoform usage (DIU) events can reveal regulatory changes, functional diversity, or shifts that are not apparent from gene-level expression alone. 
 
-### RunDIU
+### {{< fa flask >}} RunDIU {#rundiu}
 
-`RunDIU()` identifies significant differences in isoform proportions per gene. Genes are first filtered for adequate detection and the Chi-square test is subsequently applied to identify DIU events from single-cell isoform expression data (see `?RunDIU()` for more details). Group comparisons can be specified using `group.1` and `group.2` as shown below:
+`RunDIU()` identifies genes whose isoform proportions differ between cell groups. Genes are first filtered for adequate detection, then tested using the selected statistical method (uncorrected Pearson Chi-square by default). Cell bootstrapping is also applied to estimate uncertainty in transcript-proportion differences. Use `set.seed()` for reproducible resampling results.
 
-```{r rundiu}
+The tutorial compares Glut and GABA neurons:
+
+```{r rundiu-glutvgaba}
+#| message: false
+
+set.seed(1024)
+glutvsgaba_diu <- RunDIU(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
+```
+
+::: {.callout-note collapse="false" title="Defining comparisons"}
+
+Groups are defined by the active cell grouping or the columns supplied to `group.by`:
+
+- Omit `group.1` and `group.2` to compare each group with all remaining cells. 
+- Supply only `group.1` to compare that group with all remaining cells.
+- Supply multiple labels in `group.1` to pool those cells into one group and compare them with the remaining cells.
+- Supply both `group.1` and `group.2` for a direct comparison.
+- Multiple grouping columns are combined with `_`. 
+
+The examples below are alternatives and are not run in this tutorial.
+
+```{r rundiu-alternatives}
 #| eval: false
 #| echo: true
 
@@ -408,132 +565,86 @@ neur_diu <- RunDIU(gbm, group.1 = c("Glut neuron", "GABA neuron"))
 glutvsgaba_diu <- RunDIU(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 ```
 
-```{r rundiu-glutvgaba}
-#| eval: true
+:::
+
+`RunDIU()` returns a list of two data frames, `$data` and `$stats`:
+
+::: {.hypatia-table-title}
+`glutvsgaba_diu$data`
+:::
+
+```{r rundiu-data}
 #| echo: false
 
-# Glut vs GABA neurons
-glutvsgaba_diu <- RunDIU(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
+glutvsgaba_diu$data |>
+  preview_table()
 ```
 
-`RunDIU()` returns a list of two data frames:
+::: {.callout-note .hypatia-output-reference appearance="simple" icon="false"}
 
 `$data` contains the summarized isoform usage data used to generate the statistical output:
 
 - `group.1` & `group.2`: The two cell groups being compared.
 - `gene`: The gene being tested.
-- `gene.pct.1`: Percentage of cells in `group.1` with expression of the gene.
-- `gene.pct.2`: Percentage of cells in `group.2` with expression of the gene.
+- `gene.pct.1`: Fraction of cells in `group.1` with expression of the gene, on the `[0, 1]` scale.
+- `gene.pct.2`: Fraction of cells in `group.2` with expression of the gene, on the `[0, 1]` scale.
 - `transcript`: The associated transcript.
 - `cts.1`: Total counts of the transcript across all cells in `group.1`.
 - `cts.2`: Total counts of the transcript across all cells in `group.2`.
 - `prop.1`: Transcript proportion for `group.1`.
 - `prop.2`: Transcript proportion for `group.2`.
 - `prop.diff`: The difference in transcript proportions between groups (`group.1` - `group.2`).
+- `cell.n.1`, `cell.n.2`: Number of gene-positive cells used to calculate cell-level transcript-proportion summaries in each group.
+- `cell.prop.mean.1`, `cell.prop.mean.2`: Mean cell-level proportion of the transcript among gene-positive cells in each group.
+- `cell.prop.median.1`, `cell.prop.median.2`: Median cell-level proportion of the transcript among gene-positive cells in each group.
+- `cell.prop.sd.1`, `cell.prop.sd.2`: Sample standard deviation of cell-level transcript proportions in each group.
+- `cell.prop.iqr.1`, `cell.prop.iqr.2`: Interquartile range of cell-level transcript proportions in each group.
+- `cell.prop.zero.frac.1`, `cell.prop.zero.frac.2`: Fraction of gene-positive cells in which the transcript is not detected in each group.
+- `boot.prop.1`, `boot.prop.2`, `boot.prop.diff`: Bootstrap proportion vectors for the transcript. Entries are empty numeric vectors when bootstrapping is disabled.
+
+In the example above, the `cell.*` output columns contain typed `NA` values - set `cell.dispersion = TRUE` to output the optional cell-to-cell summaries.
+:::
+
+::: {.hypatia-table-title}
+`glutvsgaba_diu$stats`
+:::
+
+```{r rundiu-stats}
+#| echo: false
+
+glutvsgaba_diu$stats |>
+  dplyr::arrange(padj) |>
+  preview_table()
+```
+
+
+::: {.callout-note .hypatia-output-reference appearance="simple" icon="false"}
 
 `$stats` contains results from statistical tests:
 
 - `group.1` & `group.2`: The two cell groups being compared.
 - `gene`: The gene being tested.
-- `max.prop.diff`: The largest absolute difference in transcript proportions between `group.1` and `group.2`.
+- `max.prop.diff`: The signed proportion difference (`group.1` - `group.2`) for the transcript with the greatest absolute difference.
 - `transcript`: Transcript associated with the maximum proportion difference.
-- `pval`: P-value from the statistical test specified in `method.use` (default: Chi-square test). 
-- `padj`: Adjusted p-value, calculated separately for each group comparison (default: Benjamini-Hochberg, `p.adj = "BH"`).
-- `effect.size`: Effect size of the test, measured as Cramer's V.
-- `approx`: Indicates whether the Chi-square approximation is valid (`"valid"`) or potentially unreliable (`"warning"`), based on whether at least 80% of transcript counts of the contingency table exceed 5.
+- `pval`: P-value from the theoretical test selected by `method.use` (uncorrected Pearson Chi-square by default; Fisher is also supported).
+- `padj`: Multiple-testing adjusted theoretical p-value, calculated separately for each comparison (default: Benjamini-Hochberg).
+- `pval.perm`: Empirical p-value from the uncorrected Pearson Chi-square cell-label permutation test; `NA` when `permutation = FALSE` or `"chisq"` is not requested.
+- `padj.perm`: Multiple-testing adjusted empirical Chi-square p-value, calculated separately for each comparison.
+- `pval.perm.delta`: Empirical gene-level p-value from cell-label permutation using the maximum absolute transcript proportion difference; `NA` when `permutation = FALSE` or `"max_delta"` is not requested.
+- `padj.perm.delta`: Multiple-testing adjusted maximum-delta permutation p-value, calculated separately for each comparison.
+- `cramers.v`: Cramer's V calculated from the uncorrected Pearson Chi-square statistic.
+- `approx`: A count-based heuristic: `"valid"` when more than 80% of observed contingency-table counts exceed 5 and all counts are positive; `"warning"` otherwise. This does not check expected counts. Fisher's test reports `NA`.
+- `boot.prop.diff.mean`, `boot.prop.diff.lower`, `boot.prop.diff.upper`: Bootstrap mean and confidence interval for the transcript associated with `max.prop.diff`.
+- `boot.valid.iter`: Number of finite bootstrap differences used for the summaries.
 
-```{r rundiu-data}
-#| echo: true
-#| collapse: true
-#| code-fold: show
-#| code-summary: Example (data)
+Set `permutation = TRUE` to calculate empirical p-values from `perm.statistics = c("chisq", "max_delta")`.
 
-head(glutvsgaba_diu$data)
-```
-
-```{r rundiu-stats}
-#| echo: true
-#| collapse: true
-#| code-fold: show
-#| code-summary: Example (stats)
-
-head(glutvsgaba_diu$stats)
-```
-
-
-### PlotUsage
-
-After DIU events are identified, the `PlotUsage()` function can be run to visualize differences in isoform proportions. Available settings for `plot.type` are 'stackedbar', 'bar', 'pie' and 'heatmap'. 
-
-Let's look at the transcript proportions of the gene *MEG3*, which contains top DIU events from several comparisons.
-
-```{r plotusage-prepare}
-#| eval: true
-#| echo: true
-#| message: false
-
-plot_groups <- c("GABA neuron", "Glut neuron", "Microglia", "Oligodendrocyte", "OPC",
-                 "Tumor")
-
-# stackedbar (default)
-p_stackedbar <- PlotUsage(
-  gbm, 
-  gene = "MEG3", 
-  group.subset = plot_groups,
-  min.tx.prop = 0.10
-)
-
-# heatmap
-p_heatmap <- PlotUsage(
-  gbm, 
-  gene = "MEG3", 
-  plot.type = "heatmap", 
-  group.subset = plot_groups,
-  min.tx.prop = 0.10,
-  show.prop = TRUE
-)
-
-# pie 
-p_pie <- PlotUsage(
-  gbm, 
-  gene = "MEG3", 
-  plot.type = "pie",
-  group.subset = plot_groups,
-  min.tx.prop = 0.10,
-  nrow = 3
-)
-
-# bar 
-p_bar <- PlotUsage(
-  gbm, 
-  gene = "MEG3", 
-  plot.type = "bar",
-  group.subset = plot_groups,
-  min.tx.prop = 0.10,
-  nrow = 3
-)
-```
-
-```{r plotusage-patchwork}
-#| eval: true
-#| echo: true
-#| code-fold: true
-#| code-summary: Patchwork
-#| fig-align: center
-#| fig-width: 13
-#| fig-height: 12
-
-patchwork::wrap_plots(p_stackedbar, p_heatmap, p_pie, p_bar, ncol = 2)
-```
-
-::: {.callout-note icon="true" appearance="simple"}
-For visualization purposes, transcripts with less than 10% proportion were collapsed into 'Other' by setting the parameter `min.tx.prop`, and the smaller cell populations (astrocytes, vascular) were not shown.
 :::
 
 
-### GetUsage
+### {{< fa magnifying-glass >}} GetUsage {#getusage}
 
-`GetUsage()` quickly obtains isoform counts and relative abundance from genes of interest. 
+`GetUsage()` quickly retrieves isoform counts and relative abundance from genes of interest. Set `cell.dispersion = TRUE` to include cell-to-cell proportion summaries.
 
 ```{r getusage}
 #| eval: true
@@ -543,44 +654,160 @@ For visualization purposes, transcripts with less than 10% proportion were colla
 meg3_usage <- GetUsage(gbm, genes = "MEG3")
 
 # Usage of MEG3 isoforms in Glut and GABA neurons only
-meg3_usage_neu <- GetUsage(gbm, genes = "MEG3", group.subset = c("Glut neuron", "GABA neuron"))
+meg3_usage_neu <- GetUsage(gbm, genes = "MEG3", group.subset = c("Glut neuron", "GABA neuron"), cell.dispersion = TRUE)
 ```
+
+::: {.hypatia-table-title}
+`meg3_usage_neu`
+:::
 
 ```{r getusage-head}
-#| eval: true
-#| collapse: true
-#| code-fold: show
-#| code-summary: Example output
+#| echo: false
 
-head(meg3_usage_neu)
+meg3_usage_neu |>
+  preview_table()
 ```
+
+::: {.callout-note .hypatia-output-reference appearance="simple" icon="false"}
 
 Column descriptions:
 
 - `group`: The group being queried.
 - `gene`: The gene being queried.
-- `gene.pct`: Percentage of cells in `group` with expression of the gene.
+- `gene.pct`: Fraction of cells in `group` with expression of the gene, on the `[0, 1]` scale.
 - `transcript`: The associated transcript.
 - `cts`: Total counts of the transcript across cells in `group`.
-- `prop`: Transcript proportion. 
+- `prop`: Transcript proportion.
+- `cell.n`: Number of gene-positive cells used for cell-level summaries.
+- `cell.prop.mean`, `cell.prop.median`, `cell.prop.sd`, `cell.prop.iqr`: Cell-level transcript-proportion summaries.
+- `cell.prop.zero.frac`: Fraction of gene-positive cells in which the transcript is not detected.
 
+:::
+
+### {{< fa chart-column >}} PlotUsage {#plotusage}
+
+`PlotUsage()` can be run to visualize isoform proportions after DIU analysis or for general inquiries. Available settings for `plot.type` are 'stackedbar', 'bar', 'pie' and 'heatmap'.
+
+Bars and pies use the shared categorical palette for transcripts, with pooled `Other` isoforms shown in gray. Heatmaps use a continuous proportion gradient.
+
+Let's look at the transcript proportions of the gene *MEG3*, which contains top DIU events from several comparisons.
+
+::: {.panel-tabset}
+
+#### Stacked bar
+
+```{r plotusage-stackedbar}
+#| message: false
+#| fig-width: 9
+#| fig-height: 5
+#| fig-align: center
+#| fig-cap: "Pooled MEG3 isoform proportions in six cell types. Each stacked bar shows the composition of retained MEG3 counts within one group."
+#| fig-alt: "Stacked bars showing the relative contributions of MEG3 isoforms in GABA neurons, Glut neurons, microglia, oligodendrocytes, OPCs, and tumor cells."
+
+PlotUsage(
+  gbm, 
+  gene = "MEG3", 
+  group.subset = c("GABA neuron", "Glut neuron", "Microglia", "Oligodendrocyte", "OPC", "Tumor"),
+  min.tx.prop = 0.10
+)
+```
+
+#### Heatmap
+
+```{r plotusage-heatmap}
+#| message: false
+#| fig-width: 9
+#| fig-height: 5
+#| fig-align: center
+#| fig-cap: "MEG3 isoform proportions shown as a transcript-by-group heatmap. Numeric labels give within-group proportions, not expression counts."
+#| fig-alt: "Heatmap with MEG3 transcripts and six cell types; tile colors and labels encode each transcript's within-gene proportion."
+
+PlotUsage(
+  gbm, 
+  gene = "MEG3", 
+  plot.type = "heatmap", 
+  group.subset = c("GABA neuron", "Glut neuron", "Microglia", "Oligodendrocyte", "OPC", "Tumor"),
+  min.tx.prop = 0.10,
+  show.prop = TRUE
+)
+```
+
+#### Pie
+
+```{r plotusage-pie}
+#| message: false
+#| fig-width: 9
+#| fig-height: 7
+#| fig-align: center
+#| fig-cap: "The same pooled MEG3 proportions as pie charts, with one chart per cell type. Slice size represents isoform proportion within each group."
+#| fig-alt: "Six pie charts showing MEG3 isoform composition, using consistent transcript colors across cell types."
+
+PlotUsage(
+  gbm, 
+  gene = "MEG3", 
+  plot.type = "pie",
+  group.subset = c("GABA neuron", "Glut neuron", "Microglia", "Oligodendrocyte", "OPC", "Tumor"),
+  min.tx.prop = 0.10,
+  nrow = 3
+)
+```
+
+#### Bar
+
+```{r plotusage-bar}
+#| message: false
+#| fig-width: 9
+#| fig-height: 7
+#| fig-align: center
+#| fig-cap: "Separate bars show MEG3 isoform proportions within each cell type, making individual transcript contributions easier to compare."
+#| fig-alt: "Faceted bar charts of MEG3 transcript proportions, with one panel for each of six cell types."
+
+PlotUsage(
+  gbm, 
+  gene = "MEG3", 
+  plot.type = "bar",
+  group.subset = c("GABA neuron", "Glut neuron", "Microglia", "Oligodendrocyte", "OPC", "Tumor"),
+  min.tx.prop = 0.10,
+  nrow = 3
+)
+```
+
+:::
 
 ## Isoform Diversity
 
 Isoform diversity is a measure of the heterogeneity of transcript isoforms produced by a gene. It provides a useful way to quantify the level of isoform complexity within a gene and to compare how this complexity varies across different cell groups or conditions.
 
-### RunDIV
+### {{< fa flask >}} RunDIV {#rundiv}
 
-`RunDIV()` compares isoform diversity using the Wilcoxon test. Gene-level diversities across cell groups are estimated by bootstrap iterations following gene filtering. By default, the Tsallis entropy is calculated. Genes are also classified as monoform or polyform. Set a random seed to ensure that results are reproducible. Refer to the help page (`?RunDIV`) for more details on parameters. The usage is similar to Hypatia's other 'Run' functions:
+`RunDIV()` compares isoform diversity using the Wilcoxon test on bootstrapped gene-level diversities (default: Tsallis entropy), estimated by bootstrap iterations following gene filtering. The number of effective isoforms are also quantified using `prop.thresh`, while monoform/polyform classification is controlled by `entropy.thresh`. Refer to the help page (`?RunDIV`) for more details on parameters. Call `set.seed()` before `RunDIV()` for reproducible results.
 
-```{r rundiv}
-#| eval: false
-#| echo: true
+Here, each cell group is compared with all remaining cells:
+
+```{r rundiv-gbm}
+#| message: false
 
 set.seed(1024)
+gbm_div <- RunDIV(gbm)
+```
+
+::: {.callout-note collapse="true" title="Defining comparisons"}
+
+Groups are defined by the active cell grouping or the columns supplied to `group.by`:
+
+- Omit `group.1` and `group.2` to compare each group with all remaining cells.
+- Supply only `group.1` to compare that group with all remaining cells.
+- Supply multiple labels in `group.1` to pool those cells into one group and compare them with the remaining cells.
+- Supply both `group.1` and `group.2` for a direct comparison.
+- Multiple grouping columns are combined with `_`.
+
+The examples below are alternatives and are not run in this tutorial.
+
+```{r rundiv-alternatives}
+#| eval: false
 
 # Each cell group vs all other cells
-gbm_div <- RunDIV(gbm)
+all_div <- RunDIV(gbm)
 
 # Glut neurons vs all other cells
 glut_div <- RunDIV(gbm, group.1 = "Glut neuron")
@@ -592,111 +819,76 @@ neur_div <- RunDIV(gbm, group.1 = c("Glut neuron", "GABA neuron"))
 glutvsgaba_div <- RunDIV(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 ```
 
-`RunDIV()` returns a list of two data frames:
+:::
 
-`$data` contains the bootstrapped isoform diversity data used to generate the statistical output.
+`RunDIV()` returns a list of two data frames, `$data` and `$stats`.
+
+::: {.hypatia-table-title}
+`gbm_div$data`
+:::
+
+```{r rundiv-data}
+#| echo: false
+
+gbm_div$data |>
+  dplyr::filter(group.1 == "Astrocyte") |>
+  preview_table()
+```
+
+::: {.callout-note .hypatia-output-reference appearance="simple" icon="false"}
+
+`$data` contains the bootstrapped isoform diversity data used to generate the statistical output:
 
 - `group.1` & `group.2`: The two cell groups being compared.
 - `gene`: Gene for which the isoform diversity is computed and compared.
-- `gene.pct.1`: Percentage of cells in `group.1` with expression of the gene (without bootstrapping).
-- `gene.pct.2`: Percentage of cells in `group.2` with expression of the gene (without bootstrapping).
-- `n.transcripts`: Number of transcripts associated with the gene.
+- `gene.pct.1`: Fraction of cells in `group.1` with expression of the gene, on the `[0, 1]` scale (without bootstrapping).
+- `gene.pct.2`: Fraction of cells in `group.2` with expression of the gene, on the `[0, 1]` scale (without bootstrapping).
+- `n.transcripts`: Number of transcripts retained for the gene after count filtering, before optional `top.n` selection.
 - `div.1`: Bootstrapped isoform diversities of the gene for cells in `group.1`.
 - `div.2`: Bootstrapped isoform diversities of the gene for cells in `group.2`.
+- `cell.n.1`, `cell.n.2`: Number of gene-positive cells used to calculate cell-level diversity summaries in each group.
+- `cell.div.mean.1`, `cell.div.mean.2`: Mean cell-level isoform diversity among gene-positive cells in each group.
+- `cell.div.median.1`, `cell.div.median.2`: Median cell-level isoform diversity among gene-positive cells in each group.
+- `cell.div.sd.1`, `cell.div.sd.2`: Sample standard deviation of cell-level isoform diversity in each group.
+- `cell.div.iqr.1`, `cell.div.iqr.2`: Interquartile range of cell-level isoform diversity in each group.
 
-`$stats` contains results from the statistical tests.
+In the example above, the `cell.*` output columns contain typed `NA` values - set `cell.dispersion = TRUE` to output the optional cell-to-cell summaries.
+:::
+
+::: {.hypatia-table-title}
+`gbm_div$stats`
+:::
+
+```{r rundiv-stats}
+#| echo: false
+
+gbm_div$stats |>
+  dplyr::filter(group.1 == "Astrocyte") |>
+  dplyr::arrange(padj) |>
+  preview_table()
+```
+
+::: {.callout-note .hypatia-output-reference appearance="simple" icon="false"}
+
+`$stats` contains results from the statistical tests:
 
 - `group.1` & `group.2`: The two cell groups being compared.
 - `gene`: Gene for which the isoform diversity is computed and compared.
 - `avgDiv.1`: Average of bootstrapped isoform diversity of the gene for cells in `group.1`.
 - `avgDiv.2`: Average of bootstrapped isoform diversity of the gene for cells in `group.2`.
 - `div.diff`: Difference in averaged diversity (`group.1` - `group.2`).
-- `log2FC`: Log2 fold change in averaged diversity for `group.1` relative to `group.2`.
 - `pval`: P-value from the Wilcoxon rank-sum test comparing isoform diversity across the two groups.
-- `padj`: Adjusted p-value (default: Bonferroni, `p.adj = "bonferroni"`).
-- `div.class.1`: Isoform diversity classification of the gene for `group.1`.
-- `div.class.2`: Isoform diversity classification of the gene for `group.2`. 
+- `padj`: Adjusted p-value within each comparison (default: Bonferroni, `p.adj = "bonferroni"`).
+- `n.effective.1`: Number of effective isoforms for the gene in `group.1`.
+- `n.effective.2`: Number of effective isoforms for the gene in `group.2`.
+- `div.class.1`: "monoform" when `avgDiv.1` is at or below `entropy.thresh` and "polyform" otherwise.
+- `div.class.2`: "monoform" when `avgDiv.2` is at or below `entropy.thresh` and "polyform" otherwise.
 
-```{r rundiv-gbm}
-#| eval: true
-#| echo: false
-#| message: false
+:::
 
-set.seed(1024)
-gbm_div <- RunDIV(gbm)
-```
+### {{< fa magnifying-glass >}} GetDiversity {#getdiversity}
 
-```{r rundiv-data}
-#| eval: true
-#| collapse: true
-#| code-fold: show
-#| code-summary: Example (data)
-
-head(gbm_div$data)
-```
-
-```{r rundiv-stats}
-#| eval: true
-#| collapse: true
-#| code-fold: show
-#| code-summary: Example (stats)
-
-head(gbm_div$stats)
-```
-
-
-### PlotDiversity
-
-`PlotDiversity()` can be used to visualize isoform diversity across groups of cells. The `plot.type` parameter can be one of 'lollipop' (default), 'pcoord' for parallel coordinate, or 'density'. The **lollipop** and **pcoord** plot types are designed to visualize the diversity of a few genes, while the **density** plots the distribution of isoform diversity of several genes. 
-
-```{r plotdiversity-prepare}
-#| eval: true
-#| echo: true
-#| message: false
-
-example_genes <- c("NAPEPLD", "NPEPPS", "GNG7", "ANKRD10", "PNISR")
-
-# Lollipop (default)
-p_loll <- PlotDiversity(
-  gbm,
-  genes = example_genes,
-  group.subset = plot_groups
-)
-
-# Parallel coordinates
-p_para <- PlotDiversity(
-  gbm,
-  genes = example_genes,
-  plot.type = "pcoord",
-  group.subset = plot_groups
-)
-
-# Density 
-p_dens <- PlotDiversity(
-  gbm, 
-  genes = unique(unlist(gbm_div$data$gene)),
-  plot.type = "density",
-  group.subset = plot_groups,
-  nrow = 2
-)
-```
-
-```{r plotdiversity-patchwork}
-#| eval: true
-#| echo: true
-#| code-fold: true
-#| code-summary: Patchwork
-#| fig-width: 11
-#| fig-height: 13
-#| fig-align: center
-
-patchwork::wrap_plots(p_loll, p_para, p_dens, ncol = 1)
-```
-
-
-### GetDiversity
-
-`GetDiversity()` quickly retrieves the isoform diversity data for genes of interest.
+`GetDiversity()` quickly retrieves pooled isoform diversity data for genes of interest. Set `cell.dispersion = TRUE` to include biological cell-to-cell diversity summaries.
 
 ```{r getdiversity}
 #| eval: true
@@ -709,29 +901,99 @@ mt3_div <- GetDiversity(gbm, genes = "MT3")
 mt3_div_opc <- GetDiversity(gbm, genes = "MT3", group.subset = "OPC")
 
 # Shannon isoform diversity of gene MT3 in OPC cells
-mt3_shannon_opc <- GetDiversity(gbm, genes = "MT3", group.subset = "OPC", entropy.use = "Shannon")
+mt3_shannon_opc <- GetDiversity(gbm, genes = "MT3", group.subset = "OPC", entropy.use = "Shannon", cell.dispersion = TRUE)
 ```
+
+::: {.hypatia-table-title}
+`mt3_shannon_opc`
+:::
 
 ```{r getdiversity-output}
-#| eval: true
-#| collapse: true
-#| code-fold: show
-#| code-summary: Example output
+#| echo: false
 
-head(mt3_shannon_opc)
+mt3_shannon_opc |>
+  preview_table()
 ```
+
+::: {.callout-note .hypatia-output-reference appearance="simple" icon="false"}
 
 Column descriptions:
 
 - `group`: The cell group being queried.
 - `gene`: The gene being queried.
-- `gene.pct`: Percentage of cells in `group` with expression of the gene.
-- `n.transcripts`: Number of associated transcripts for the gene.
+- `gene.pct`: Fraction of cells in `group` with expression of the gene, on the `[0, 1]` scale.
+- `n.transcripts`: Number of transcripts retained after count filtering in this group, before optional `top.n` selection.
+- `n.effective`: Number of transcripts with within-gene proportion greater than or equal to `prop.thresh`.
 - `transcript`: The associated transcript.
 - `cts`: Total counts of the transcript in `group`.
 - `prop`: The transcript proportion in `group`.
 - `div`: Isoform diversity of the gene in `group`.
+- `div.class`: `"monoform"` when `div` is at or below `entropy.thresh` and `"polyform"` otherwise.
+- `cell.n`: Number of gene-positive cells used for cell-level summaries.
+- `cell.div.mean`, `cell.div.median`, `cell.div.sd`, `cell.div.iqr`: Cell-level diversity summaries repeated across the gene's transcript rows.
 
+:::
+
+### {{< fa chart-column >}} PlotDiversity {#plotdiversity}
+
+`PlotDiversity()` can be used to visualize isoform diversity across groups of cells. The `plot.type` parameter can be one of 'lollipop' (default), 'pcoord' for parallel coordinate, or 'density'. The **lollipop** and **pcoord** plot types show the diversity and entropy-based monoform/polyform classification of a few genes, while **density** plots show the distribution of diversity across genes. These plots use pooled transcript counts within each group, rather than the bootstrap means returned by `RunDIV()`.
+
+::: {.panel-tabset}
+
+#### Lollipop
+
+```{r plotdiversity-lollipop}
+#| message: false
+#| fig-width: 10
+#| fig-height: 5
+#| fig-align: center
+#| fig-cap: "Pooled Tsallis diversity for five example genes across six cell types. Monoform/polyform labels use the entropy threshold rather than a test of differential diversity."
+#| fig-alt: "Lollipop panels comparing pooled isoform diversity and monoform/polyform classifications for NAPEPLD, NPEPPS, GNG7, ANKRD10, and PNISR across cell types."
+
+PlotDiversity(
+  gbm,
+  genes = c("NAPEPLD", "NPEPPS", "GNG7", "ANKRD10", "PNISR"),
+  group.subset = c("GABA neuron", "Glut neuron", "Microglia", "Oligodendrocyte", "OPC", "Tumor")
+)
+```
+
+#### Parallel coordinates
+
+```{r plotdiversity-pcoord}
+#| message: false
+#| fig-width: 10
+#| fig-height: 5
+#| fig-align: center
+#| fig-cap: "Parallel coordinates connect pooled diversity values for the same gene across cell types, highlighting differences in each gene's diversity profile."
+#| fig-alt: "Parallel-coordinate plot connecting the Tsallis diversity of five example genes across six cell types."
+
+PlotDiversity(
+  gbm,
+  genes = c("NAPEPLD", "NPEPPS", "GNG7", "ANKRD10", "PNISR"),
+  plot.type = "pcoord",
+  group.subset = c("GABA neuron", "Glut neuron", "Microglia", "Oligodendrocyte", "OPC", "Tumor")
+)
+```
+
+#### Density
+
+```{r plotdiversity-density}
+#| message: false
+#| fig-width: 10
+#| fig-height: 5
+#| fig-align: center
+#| fig-cap: "Distributions of pooled gene-level diversity across cell types for genes returned by RunDIV. These curves summarize variation across genes, not across bootstrap iterations or individual cells."
+#| fig-alt: "Density curves of pooled Tsallis isoform diversity across genes, with a separate curve for each selected cell type."
+
+PlotDiversity(
+  gbm,
+  genes = unique(unlist(gbm_div$data$gene)),
+  plot.type = "density",
+  group.subset = c("GABA neuron", "Glut neuron", "Microglia", "Oligodendrocyte", "OPC", "Tumor")
+)
+```
+
+:::
 
 ## Isoform Expression
 
@@ -748,15 +1010,33 @@ To compare single-cell isoform expression levels, raw counts must first be norma
 gbm <- NormalizeCounts(gbm)
 ```
 
-::: {.callout-note icon="true" appearance="simple"}
 The normalized matrix is stored as "logcounts" in the `assays` slot. Use `assayNames()` to view available count matrices and `assay()` to fetch a specific matrix. 
-:::
 
-### RunDEI
+### {{< fa flask >}} RunDEI {#rundei}
 
-After normalization, `RunDEI()` can be used to compare isoform expression across cell groups. Group comparisons can be specified as shown:
+After normalization, `RunDEI()` can be used to compare isoform expression across cell groups. The default `min.pct = 0.01` requires transcript detection in at least 1% of cells in each group before testing and p-value adjustment. The tutorial compares pooled Glut and GABA neurons with all remaining cells:
 
-```{r rundei}
+```{r rundei-run}
+#| message: false
+
+# Glut and GABA neurons vs all other cells
+neur_dei <- RunDEI(gbm, group.1 = c("Glut neuron", "GABA neuron"))
+
+```
+
+::: {.callout-note collapse="true" title="Defining comparisons"}
+
+Groups are defined by the active cell grouping or the columns supplied to `group.by`:
+
+- Omit `group.1` and `group.2` to compare each group with all remaining cells.
+- Supply only `group.1` to compare that group with all remaining cells.
+- Supply multiple labels in `group.1` to pool those cells into one group and compare them with the remaining cells.
+- Supply both `group.1` and `group.2` for a direct comparison.
+- Multiple grouping columns are combined with `_`.
+
+The examples below are alternatives and are not run in this tutorial.
+
+```{r rundei-alternatives}
 #| eval: false
 
 # Each cell group vs all other cells
@@ -772,149 +1052,66 @@ neur_dei <- RunDEI(gbm, group.1 = c("Glut neuron", "GABA neuron"))
 glutvsgaba_dei <- RunDEI(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 ```
 
-`RunDEI()` outputs a data frame containing results from the group comparisons with the following columns:
+:::
+
+`RunDEI()` returns a list of two data frames, `$data` and `$stats`.
+
+::: {.hypatia-table-title}
+`neur_dei$data`
+:::
+
+```{r rundei-neurdei}
+#| echo: false
+
+neur_dei$data |>
+  preview_table()
+```
+
+::: {.callout-note .hypatia-output-reference appearance="simple" icon="false"}
+
+`$data` contains the summarized expression data used to generate the statistical output:
 
 - `group.1` & `group.2`: The two cell groups being compared.
 - `gene`: The gene associated with the transcript being tested.
 - `transcript`: The transcript being tested.
-- `pct.1`: Percentage of cells in `group.1` with expression of the transcript.
-- `pct.2`: Percentage of cells in `group.2` with expression of the transcript.
-- `avgExpr.1`: Average expression of the transcript across all cells in `group.1`.
-- `avgExpr.2`: Average expression of the transcript across all cells in `group.2`.
-- `log2FC`: The log2 fold change in transcript expression for `group.1` relative to `group.2`.
+- `pct.1`: Fraction of cells in `group.1` with expression of the transcript, on the `[0, 1]` scale.
+- `pct.2`: Fraction of cells in `group.2` with expression of the transcript, on the `[0, 1]` scale.
+- `avgExpr.1`: Average expression of the transcript across all cells in `group.1`, on the selected assay's scale (`logcounts` by default).
+- `avgExpr.2`: Average expression of the transcript across all cells in `group.2`, on the selected assay's scale (`logcounts` by default).
+- `cell.n.1`, `cell.n.2`: Number of cells used to calculate cell-level expression summaries in each group.
+- `cell.expr.median.1`, `cell.expr.median.2`: Median cell-level expression in each group.
+- `cell.expr.sd.1`, `cell.expr.sd.2`: Sample standard deviation of cell-level expression in each group.
+- `cell.expr.iqr.1`, `cell.expr.iqr.2`: Interquartile range of cell-level expression in each group.
+
+In the example above, the `cell.*` output columns contain typed `NA` values - set `cell.dispersion = TRUE` to output the optional cell-to-cell summaries.
+:::
+
+::: {.hypatia-table-title}
+`neur_dei$stats`
+:::
+
+```{r rundei-stats}
+#| echo: false
+
+neur_dei$stats |>
+  dplyr::arrange(padj) |>
+  preview_table()
+```
+
+::: {.callout-note .hypatia-output-reference appearance="simple" icon="false"}
+
+`$stats` contains results from the statistical tests:
+
+- `group.1` & `group.2`: The two cell groups being compared.
+- `gene`: The gene associated with the transcript being tested.
+- `transcript`: The transcript being tested.
+- `log2FC`: `log2(avgExpr.1 / avgExpr.2)` on the selected assay, without a pseudocount. With the default `logcounts` assay, this is the log2 ratio of mean log-normalized values, not a fold change calculated from untransformed counts.
 - `pval`: P-value from the Wilcoxon rank-sum test.
 - `padj`: Adjusted p-value, calculated separately for each group comparison (default: Bonferroni, `p.adj = "bonferroni"`).
 
-```{r rundei-run}
-#| eval: true
-#| echo: false
-#| message: false
+:::
 
-# Each cell group vs all other cells
-all_dei <- RunDEI(gbm)
-neur_dei <- RunDEI(gbm, group.1 = c("Glut neuron", "GABA neuron"))
-glutvsgaba_dei <- RunDEI(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
-
-```
-
-```{r rundei-neurdei}
-#| eval: true
-#| message: false
-#| collapse: true
-#| code-fold: show
-#| code-summary: Example output
-
-head(neur_dei)
-```
-
-
-### PlotExpression
-
-`PlotExpression()` can be used to visualize isoform expression. The `plot.type` setting can be set to 'violin' (default), 'reducedDim' or 'heatmap'. Let's take a look at the top 3 DEIs expressed by the neuronal cells in a **violin** plot.
-
-```{r plotexpression-top3}
-#| eval: true
-#| message: false
-#| collapse: true
-#| code-fold: true
-#| code-summary: Top 3 neuron DEIs
-
-# Get the top 3 DEIs of neurons
-neur_top3_dei <- neur_dei |> 
-  dplyr::filter(log2FC >= 0.6 & padj <= 0.05) |>
-  dplyr::slice_min(padj, n = 3, with_ties = FALSE) |>
-  dplyr::pull(transcript)
-
-neur_top3_dei
-```
-
-```{r plotexpression-vln}
-#| eval: true
-#| message: false
-#| fig-width: 10
-#| fig-height: 4
-#| fig-align: center
-
-# Violin plot
-PlotExpression(
-  gbm, 
-  transcripts = neur_top3_dei,
-  plot.type = "violin"
-)
-```
-
-For the **reducedDim** plot, 2D embeddings are required. Recall that `umap_1` and `umap_2` were included in the cell-level metadata when preparing the input data. However, these embeddings are best placed in the `reducedDims` slot, native to SCE objects. Afterwards, the specific embeddings must be specified in the `dim.use` parameter of `PlotExpression()`.
-
-```{r plotexpression-reduceddim1}
-#| eval: false
-
-# Method 1: add UMAP embeddings from the prepared colData
-reducedDim(gbm, "UMAP") <- colData(gbm)[, c("umap_1", "umap_2")]
-
-# Method 2: add UMAP embeddings to the SCE object directly from a Seurat object
-reducedDim(gbm, "UMAP") <- seurat_object@reductions$umap@cell.embeddings[colnames(gbm), ]
-```
-
-```{r plotexpression-reduceddim2}
-#| eval: true
-#| echo: false
-
-reducedDim(gbm, "UMAP") <- colData(gbm)[, c("umap_1", "umap_2")]
-```
-
-```{r plotexpression-reduceddim}
-#| eval: true
-#| message: false
-#| fig-width: 13
-#| fig-align: center
-
-# reducedDim plot
-PlotExpression(
-  gbm, 
-  transcripts = neur_top3_dei,
-  plot.type = "reducedDim", 
-  dim.use = "UMAP"
-)
-```
-
-The **heatmap** is best used to visualize multiple DEIs. Let's plot the top 20 DEIs from the *Glut* vs *GABA* neurons comparison.
-
-```{r plotexpression-top20}
-#| eval: true
-#| echo: true
-#| message: false
-#| collapse: true
-#| code-fold: true
-#| code-summary: Top 20 Glut vs GABA DEIs
-
-# Get the top 20 Glut vs GABA DEIs 
-glutvsgaba_top20 <- glutvsgaba_dei |>
-  dplyr::filter(abs(log2FC) >= 0.6 & padj <= 0.05) |>
-  dplyr::slice_min(padj, n = 20, with_ties = FALSE) |>
-  dplyr::arrange(desc(log2FC)) |>
-  dplyr::pull(transcript)
-
-glutvsgaba_top20
-```
-
-```{r plotexpression-heatmap}
-#| eval: true
-#| echo: true
-#| message: false
-#| fig-width: 10
-#| fig-height: 6
-#| fig-align: center
-
-# Heatmap
-PlotExpression(
-  gbm, 
-  transcripts = glutvsgaba_top20,
-  plot.type = "heatmap",
-  group.subset = c("Glut neuron", "GABA neuron")
-)
-```
-
-### GetExpression
+### {{< fa magnifying-glass >}} GetExpression {#getexpression}
 
 `GetExpression()` quickly obtains an expression summary for isoforms or genes of interest.
 
@@ -923,31 +1120,39 @@ PlotExpression(
 #| message: false
 
 # Expression of MEG3-209 for all groups
-meg3_209 <- GetExpression(gbm, transcripts = "MEG3-209") 
+meg3_209 <- GetExpression(gbm, transcripts = "MEG3-209")
 
 # Expression of MEG3-209 in neurons
 meg3_209_neu <- GetExpression(gbm, transcripts = "MEG3-209", group.subset = c("Glut neuron", "GABA neuron"))
 
 # Expression of all MEG3 isoforms in neurons
-meg3_neu <- GetExpression(gbm, genes = "MEG3", group.subset = c("Glut neuron", "GABA neuron"))
+meg3_neu <- GetExpression(gbm, genes = "MEG3", group.subset = c("Glut neuron", "GABA neuron"), cell.dispersion = TRUE)
 ```
+
+::: {.hypatia-table-title}
+`meg3_neu`
+:::
 
 ```{r getexpr-head}
-#| eval: true
-#| collapse: true
-#| code-fold: show
-#| code-summary: Example output
+#| echo: false
 
-head(meg3_neu)
+meg3_neu |>
+  preview_table()
 ```
+
+::: {.callout-note .hypatia-output-reference appearance="simple" icon="false"}
 
 Column descriptions:
 
-- `group`: The cell group being queried. 
+- `group`: The cell group being queried.
 - `gene`: The (associated) gene being queried.
 - `transcript`: The transcripts being queried.
-- `pct`: Percentage of cells in `group` with expression of the transcript.
+- `pct`: Fraction of cells in `group` with expression of the transcript, on the `[0, 1]` scale.
 - `avgExpr`: Average expression of the transcript across all cells in `group`.
+- `cell.n`: Number of cells used to calculate cell-level expression summaries.
+- `cell.expr.median`, `cell.expr.sd`, `cell.expr.iqr`: Median, sample standard deviation, and interquartile range of cell-level expression.
+
+:::
 
 To retrieve the expression matrix without summary statistics, users can combine `assay()` with `SubsetCells()` and `SubsetTranscripts()`. The following example retrieves the normalized expression matrix for isoforms of the gene *MBP* in oligodendrocytes:
 
@@ -963,10 +1168,151 @@ oligod_mbp <- SubsetTranscripts(oligod, subset = gene_name == "MBP")
 assay(oligod_mbp, "logcounts")
 ```
 
+### {{< fa chart-column >}} PlotExpression {#plotexpression}
 
-# Utilities {#utilities}
+`PlotExpression()` can be used to visualize isoform expression. The `plot.type` setting can be set to 'violin' (default), 'reducedDim' or 'heatmap'. First, select the top 3 DEIs with higher mean log-normalized expression in the pooled neuronal group than in the remaining cells. The violin and reduced-dimension plots below use these transcripts.
 
-### Preparing cell-level metadata (extended) {.unnumbered .unlisted}
+::: {.panel-tabset}
+
+#### Violin
+
+```{r plotexpression-top3}
+#| eval: true
+#| message: false
+#| collapse: true
+#| code-fold: true
+#| code-summary: Top 3 neuron DEIs
+
+# Get the top 3 DEIs of neurons
+neur_top3_dei <- neur_dei$stats |>
+  dplyr::filter(log2FC > 0.6 & padj < 0.05) |>
+  dplyr::slice_min(padj, n = 3, with_ties = FALSE) |>
+  dplyr::pull(transcript)
+
+neur_top3_dei
+```
+
+```{r plotexpression-vln}
+#| eval: true
+#| message: false
+#| fig-width: 10
+#| fig-height: 4
+#| fig-align: center
+#| fig-cap: "Cell-level log-normalized expression of three selected neuronal DEIs across cell types. Violin shapes summarize the distributions; overlaid points represent individual cells."
+#| fig-alt: "Three transcript panels showing violin distributions and individual-cell log-normalized expression across the annotated cell types."
+
+# Violin plot
+PlotExpression(
+  gbm, 
+  transcripts = neur_top3_dei,
+  plot.type = "violin"
+)
+```
+
+#### Reduced dimensions
+
+For the **reducedDim** plot, 2D embeddings are required. Recall that `umap_1` and `umap_2` were included in the cell-level metadata when preparing the input data. These embeddings are stored in `reducedDims`, then selected with `dim.use`. Hypatia uses the supplied embedding; it does not calculate a new UMAP.
+
+```{r plotexpression-reduceddim-setup}
+
+# Add UMAP embeddings from the prepared colData
+reducedDim(gbm, "UMAP") <- colData(gbm)[, c("umap_1", "umap_2")]
+```
+
+::: {.callout-note collapse="true" title="Alternative: use a Seurat embedding"}
+
+This alternative requires your own Seurat object and is not run here:
+
+```{r plotexpression-seurat-embedding}
+#| eval: false
+
+reducedDim(gbm, "UMAP") <- seurat_object@reductions$umap@cell.embeddings[colnames(gbm), , drop = FALSE]
+```
+
+:::
+
+```{r plotexpression-top3-reduceddim}
+#| eval: true
+#| message: false
+#| collapse: true
+#| code-fold: true
+#| code-summary: Top 3 neuron DEIs
+
+# Get the top 3 DEIs of neurons
+neur_top3_dei <- neur_dei$stats |>
+  dplyr::filter(log2FC > 0.6 & padj < 0.05) |>
+  dplyr::slice_min(padj, n = 3, with_ties = FALSE) |>
+  dplyr::pull(transcript)
+
+neur_top3_dei
+```
+
+```{r plotexpression-reduceddim}
+#| eval: true
+#| message: false
+#| fig-width: 13
+#| fig-align: center
+#| fig-cap: "Expression of the same three neuronal DEIs overlaid on the supplied gene-expression UMAP. Each panel colors cells by a transcript's log-normalized expression."
+#| fig-alt: "Three UMAP panels with identical cell coordinates, colored separately by log-normalized expression of the selected neuronal transcripts."
+
+# reducedDim plot
+PlotExpression(
+  gbm, 
+  transcripts = neur_top3_dei,
+  plot.type = "reducedDim", 
+  dim.use = "UMAP"
+)
+```
+
+#### Heatmap
+
+The **heatmap** is best used to visualize multiple DEIs. Let's plot the top 20 DEIs from the *Glut* vs *GABA* neurons comparison.
+
+```{r plotexpression-top20}
+#| eval: true
+#| echo: true
+#| message: false
+#| collapse: true
+#| code-fold: true
+#| code-summary: Top 20 Glut vs GABA DEIs
+
+# Compare Glut and GABA neurons for this heatmap
+glutvsgaba_dei <- RunDEI(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
+
+# Get the top 20 Glut vs GABA DEIs 
+glutvsgaba_top20 <- glutvsgaba_dei$stats |>
+  dplyr::filter(abs(log2FC) >= 0.6 & padj <= 0.05) |>
+  dplyr::slice_min(padj, n = 20, with_ties = FALSE) |>
+  dplyr::arrange(dplyr::desc(log2FC)) |>
+  dplyr::pull(transcript)
+
+glutvsgaba_top20
+```
+
+```{r plotexpression-heatmap}
+#| eval: true
+#| echo: true
+#| message: false
+#| fig-width: 10
+#| fig-height: 6
+#| fig-align: center
+#| fig-cap: "Twenty selected DEIs in Glut and GABA neurons. Each transcript's log-normalized expression is standardized across plotted cells and clipped to [-2, 2], emphasizing relative expression patterns rather than absolute abundance."
+#| fig-alt: "Heatmap of twenty selected transcripts across individual Glut and GABA neurons, with colors representing per-transcript standardized expression and annotations identifying the two cell groups."
+
+# Heatmap
+PlotExpression(
+  gbm, 
+  transcripts = glutvsgaba_top20,
+  plot.type = "heatmap",
+  group.subset = c("Glut neuron", "GABA neuron")
+)
+```
+
+:::
+
+# Extras {#extras}
+
+#### Preparing cell-level metadata (extended) {.unnumbered}
 
 The following shows how the cell-level metadata (`gbm_colData` from the example) was prepared from a *Seurat* object from gene expression analysis. 
 
@@ -974,27 +1320,27 @@ The following shows how the cell-level metadata (`gbm_colData` from the example)
 #| eval: false
 
 # Get the cell_type ident
-gbm_colData <- seurat_object@metadata["cell_type"]
+gbm_colData <- seurat_object[[]][, "cell_type", drop = FALSE]
 
-# Get umap_1 and umap_2 
+# Get umap_1 and umap_2 from the standard workflow
 gbm_colData <- cbind(gbm_colData, seurat_object@reductions$umap@cell.embeddings)
 
 # Match row name order with count matrix
-gbm_colData <- gbm_colData[colnames(gbm_countData), ]
+gbm_colData <- gbm_colData[colnames(gbm_countData), , drop = FALSE]
 ```
 
-### Preparing transcript-level metadata (extended) {.unnumbered .unlisted}
+#### Preparing transcript-level metadata (extended) {.unnumbered}
 
 Below shows how the transcript-level metadata (`gbm_rowData` from the example) was prepared. The GTF from the *IsoQuant* output, reference genome GTF, and *SQANTI* results were used. 
 
 ```{r}
 #| eval: false
 
-# Read in SQANTI classifications
-sqanti_class <- readr::read_delim("data/gbm/sqanti/OUT.extended_annotation_classification.txt")
+# Read in SQANTI3 classifications
+sqanti_class <- readr::read_delim("OUT.extended_annotation_classification.txt")
 
 # Read in reference GTF
-ref <- rtracklayer::import("data/ref/GRCh38-2024-A.gtf")
+ref <- rtracklayer::import("GRCh38-2024-A.gtf")
 ref <- ref |> 
   as.data.frame() |>
   dplyr::filter(type == "transcript") |>
@@ -1007,25 +1353,31 @@ gbm_rowData <- sqanti_class |>
   dplyr::filter(isoform %in% rownames(gbm_countData)) |>
   dplyr::rename("gene_id" = "associated_gene",
                 "transcript_id" = "isoform") |>
-  dplyr::left_join(., dplyr::distinct(ref[, c("gene_name", "gene_id")]), by = "gene_id") |>
-  dplyr::left_join(., dplyr::distinct(ref[, c("transcript_name", "transcript_id")]), by = "transcript_id") |>
+  dplyr::left_join(dplyr::distinct(ref[, c("gene_name", "gene_id")]), by = "gene_id") |>
+  dplyr::left_join(dplyr::distinct(ref[, c("transcript_name", "transcript_id")]), by = "transcript_id") |>
   dplyr::mutate(transcript_name = ifelse(is.na(transcript_name), transcript_id, transcript_name),
                 gene_name = ifelse(is.na(gene_name), gene_id, gene_name)) |>
   tibble::column_to_rownames(var = "transcript_id")
 
 # Match row name order with count matrix
-gbm_rowData <- gbm_rowData[rownames(gbm_countData), ]
+gbm_rowData <- gbm_rowData[rownames(gbm_countData), , drop = FALSE]
 ```
 
-### Data integration {.unnumbered .unlisted}
+#### Multiple samples {.unnumbered}
 
-To analyze multiple samples in Hypatia, raw isoform count matrices can be directly merged and used to create the *SCE* object. The cell- and transcript-level metadata should contain data for all cells and isoforms in the correct orders. A cell metadata column containing the sample origin of each cell is useful because `group.by` can accept multiple variables, such as `group.by = c("cell_type", "sample_id")` or `group.by = c("cell_type", "condition")`, to compare each observed combination of those annotations.
+To analyze multiple samples in Hypatia, a separate *SCE* object can be created for each sample, or raw isoform count matrices can be combined into a single object after aligning transcript IDs and ensuring unique cell IDs across samples. Transcript IDs must refer to consistent isoform definitions across samples. Cell- and transcript-level metadata must match the columns and rows of the combined count matrix, respectively, in the same order. Separate objects support separate analyses; cross-sample comparisons within a single Hypatia call require a combined object.
 
-### Session Info {.unnumbered .unlisted}
+Store sample identity and relevant annotations in the cell metadata. Multiple `group.by` variables, such as `group.by = c("cell_type", "sample_id")` or `group.by = c("cell_type", "condition")`, define groups from the observed combinations of those annotations, with labels joined by `_` (for example, `Astrocyte_control`). Use `group.1` and `group.2` to select specific comparisons, such as the same cell type in two conditions. Otherwise, each group is compared with the remaining cells; exactly two groups produce one comparison.
 
-```{r}
+This grouping does not perform batch correction or account for biological replication. In particular, including `sample_id` in `group.by` defines sample-specific groups but does not model between-sample variability. Condition-level inference across biological samples requires a replicate-aware statistical approach.
+
+#### Session information {.unnumbered}
+
+```{r session-info}
 #| collapse: true
 #| echo: true
+#| code-fold: true
+#| code-summary: R and package versions
 
 sessionInfo()
 ```
@@ -1045,8 +1397,3 @@ c("#D92B03", "#F1997B", "#F38B2F", "#A5405E", "#F4C288", "#088C00", "#025939", "
 
 c("#FBB463", "#80B1D3", "#F47F72", "#BDBAD8", "#FBF8B4", "#8DD1C6")
 ```
-
-<br>
-<br>
-<br>
-<br>

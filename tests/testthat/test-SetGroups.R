@@ -62,6 +62,7 @@ test_that("SetGroups factor columns work in downstream grouping", {
       group.1 = "Glut neuron",
       group.2 = "GABA neuron",
       genes = "MEG3",
+      permutation = FALSE,
       quiet = TRUE
     )
   )

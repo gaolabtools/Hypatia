@@ -10,15 +10,38 @@
 #' @param plot.type Plot type: `"lollipop"`, `"density"`, or `"pcoord"`.
 #' @param entropy.use Diversity index: `"Tsallis"`, `"Shannon"`, `"NormalizedShannon"`, `"Renyi"`, `"NormalizedRenyi"`, `"GiniSimpson"`, or `"InverseSimpson"`.
 #' @param assay.use Assay name to use.
-#' @param entropy.thresh Threshold used to classify genes as `"monoform"` or `"polyform"`. If `NULL`, a method-specific default is used.
+#' @param entropy.thresh Diversity index threshold used to classify genes as monoform or polyform. If `NULL`, a default is chosen from the entropy index. Default thresholds for Tsallis and Renyi are defined only at orders 3 and 2, respectively; other orders return `NA` classifications unless a threshold is supplied.
+#' @param prop.thresh Minimum within-gene transcript proportion used to define an effective isoform. Transcripts with proportions greater than or equal to this value are effective.
 #' @param min.tx.cts Minimum transcript counts required before diversity is calculated.
-#' @param order Entropy order. Corresponds to `q` for Tsallis and `alpha` for Renyi.
-#' @param colors A vector of colors to use for the plot.
+#' @param order Entropy order. Corresponds to `q` for Tsallis and `alpha` for Renyi. At order 1, Tsallis and Renyi use their Shannon entropy limit, and NormalizedRenyi uses normalized Shannon entropy.
+#' @param colors A vector of colors, optionally named by group label (lollipop
+#'   and density) or gene ID (parallel coordinates). If `NULL`, cell groups use
+#'   the shared categorical group palette: ten fixed colors, or the qualitative
+#'   HCL `"Dark 3"` palette for more than ten groups. Parallel-coordinate plots
+#'   use a separate gene palette.
 #' @param text.size Text size.
-#' @param nrow Number of facet rows.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
+#' @param top.n Optional number of the most abundant isoforms to include in diversity calculations. If `NULL`, all isoforms are included. Must be at least 2 when supplied.
+#' @param renormalize Logical; if `TRUE`, rescale the selected isoform proportions to sum to one before calculating diversity.
 #'
-#' @returns A ggplot object.
+#' @returns A ggplot object. The `class` aesthetic reflects whether `diversity` is at or below `entropy.thresh`.
+#' @details Diversity is calculated from pooled transcript counts within each
+#' group after applying `min.tx.cts` separately in that group. The entropy
+#' indices, `top.n` selection, optional renormalization, and classification
+#' thresholds follow [GetDiversity()]. These are direct pooled estimates,
+#' rather than the bootstrap means returned by [RunDIV()]. Multiple `group.by`
+#' columns are joined with `_`.
+#'
+#' - `"lollipop"`: Diversity by gene, with colored points for each group.
+#' - `"pcoord"`: Diversity across groups, with a line for each gene.
+#' - `"density"`: The distribution of gene-level diversity values in each group.
+#'
+#' Point shapes in lollipop and parallel-coordinate plots indicate the
+#' entropy-based monoform/polyform class, not the number of effective isoforms.
+#' Supply an appropriate `entropy.thresh` when using an entropy order without
+#' a default classification threshold. Density plots summarize variation across
+#' genes, not cell-to-cell variation or bootstrap uncertainty.
+#' @seealso [GetDiversity()], [RunDIV()]
 #' @export
 #' @import checkmate
 #' @import SingleCellExperiment
@@ -37,12 +60,14 @@ PlotDiversity <- function (
     entropy.use = "Tsallis",
     assay.use = "counts",
     entropy.thresh = NULL,
+    prop.thresh = 0.2,
     min.tx.cts = 1,
     order = NULL,
     colors = NULL,
     text.size = 12,
-    nrow = 1,
-    quiet = FALSE
+    quiet = FALSE,
+    top.n = NULL,
+    renormalize = FALSE
 ) {
 
   # Check inputs
@@ -58,19 +83,27 @@ PlotDiversity <- function (
   assertCharacter(group.subset, null.ok = TRUE)
   assertCharacter(group.order, null.ok = TRUE)
   assertChoice(plot.type, c("lollipop", "density", "pcoord"))
-  assertNumber(nrow, lower = 1, finite = TRUE)
   assertTRUE(assay.use %in% assayNames(object))
   assertChoice(entropy.use, c("Tsallis", "Shannon", "NormalizedShannon", "Renyi", "NormalizedRenyi", "GiniSimpson", "InverseSimpson"))
+  assertNumber(entropy.thresh, lower = 0, finite = TRUE, null.ok = TRUE)
+  assertNumber(prop.thresh, lower = 0, upper = 1, finite = TRUE)
+  if (prop.thresh == 0) {
+    stop("`prop.thresh` must be greater than 0.", call. = FALSE)
+  }
   assertCharacter(colors, null.ok = TRUE)
   assertNumber(min.tx.cts, lower = 0, finite = TRUE)
   assertNumber(order, lower = 0, finite = TRUE, null.ok = TRUE)
-  assertTRUE(order != 1 || is.null(order))
   assertNumber(text.size, lower = 0, finite = TRUE)
-  assertNumber(nrow, lower = 1, finite = TRUE)
   assertFlag(quiet)
+  assertCount(top.n, positive = TRUE, null.ok = TRUE)
+  if (!is.null(top.n) && top.n < 2) {
+    stop("`top.n` must be at least 2.", call. = FALSE)
+  }
+  assertFlag(renormalize)
 
-  div.func <- .DiversityFunction(entropy.use, order)
-  entropy.thresh <- .DiversityThreshold(entropy.use, entropy.thresh)
+  div.func <- .DiversityFunction(entropy.use, order, top.n, renormalize)
+  entropy.thresh <- .DiversityThreshold(entropy.use, entropy.thresh, order)
+  .DiversityThresholdMessage(entropy.use, order, entropy.thresh, quiet)
 
   # Transcript and gene IDs
   active_ids <- .ActiveIds(object)
@@ -132,15 +165,16 @@ PlotDiversity <- function (
       dplyr::filter(cts >= min.tx.cts) %>%
       mutate("group_var" = group)
 
-    div_res <- agg_cts_df %>%
+     div_res <- agg_cts_df %>%
       group_by(gene_query) %>%
       mutate(prop = cts / sum(cts),
-             diversity = div.func(x = prop)) %>%
+             diversity = div.func(x = prop),
+             n.effective = .EffectiveIsoformCount(prop, prop.thresh),
+             class = .DiversityClass(diversity, entropy.thresh)) %>%
       ungroup() %>%
       mutate(prop = ifelse(is.nan(prop), NA, prop),
              diversity = ifelse(is.na(prop), NA, diversity)) %>%
-      distinct(group_var, gene_query, diversity) %>%
-      mutate(class = ifelse(diversity <= entropy.thresh, "monoform", "polyform"))
+      distinct(group_var, gene_query, diversity, n.effective, class)
 
     res_list[[group]] <- div_res
   }
@@ -154,10 +188,8 @@ PlotDiversity <- function (
 
   # Colors
   if (is.null(colors)) {
-    group_colors <- c("#A5D1B0", "#CE8A8D", "#FFF7C1", "#E0F3FF", "#ADD3F4",
-                      "#F7C9CF", "#FEE4E8", "#7CA3B8", "#BFB8D6", "#FCCB8E")
     n_group_colors <- length(unique(plotdata$group_var))
-    group_colors <- .DefaultDiscreteColors(n_group_colors, group_colors)
+    group_colors <- .DefaultGroupColors(n_group_colors)
 
     gene_colors <- c("#FBB463", "#80B1D3", "#F47F72", "#BDBAD8", "#FBF8B4", "#8DD1C6")
     n_gene_colors <- length(unique(plotdata$gene_query))
@@ -169,15 +201,15 @@ PlotDiversity <- function (
 
     p1 <- plotdata %>%
       ggplot() +
-      geom_linerange(aes(x = gene_query, ymin = 0, ymax = diversity, color = group_var, linetype = class),
+      geom_linerange(aes(x = gene_query, ymin = 0, ymax = diversity, color = group_var),
                      position = position_dodge(width = 0.8)) +
-      geom_point(aes(x = gene_query, y = diversity, group = group_var),
-                 size = 3.5, color = "black", position = position_dodge(width = 0.8)) +
-      geom_point(aes(x = gene_query, y = diversity, color = group_var),
-                 size = 3, position = position_dodge(width = 0.8)) +
-      scale_linetype_manual(values = c("monoform" = "solid", "polyform" = "dashed"),
-                            breaks = c("monoform", "polyform"), na.translate = FALSE) +
-      labs(color = group_label, linetype = "class") +
+      geom_point(aes(x = gene_query, y = diversity, color = group_var, shape = class),
+                 size = 3.5, fill = "white", position = position_dodge(width = 0.8)) +
+      scale_shape_manual(values = c("monoform" = 19, "polyform" = 21),
+                         breaks = c("monoform", "polyform"), na.translate = FALSE) +
+      labs(color = group_label, shape = "class") +
+      guides(color = guide_legend(order = 1),
+             shape = guide_legend(order = 2)) +
       xlab(active.gene.id) +
       ylab("Diversity") +
       theme_linedraw(base_size = text.size) +
@@ -204,7 +236,9 @@ PlotDiversity <- function (
                  size = 3.5, fill = "white") +
       scale_shape_manual(values = c("monoform" = 19, "polyform" = 21),
                          breaks = c("monoform", "polyform"), na.translate = FALSE) +
-      labs(color = active.gene.id, linetype = "class") +
+      labs(color = active.gene.id, shape = "class") +
+      guides(color = guide_legend(order = 1),
+             shape = guide_legend(order = 2)) +
       xlab(group_label) +
       ylab("Diversity") +
       theme_linedraw(base_size = text.size) +
@@ -225,9 +259,8 @@ PlotDiversity <- function (
   if (plot.type == "density") {
     p1 <- plotdata %>%
       ggplot() +
-      geom_density(aes(x = diversity, fill = group_var)) +
-      facet_wrap(~ group_var, nrow = nrow) +
-      labs(fill = group_label) +
+      geom_density(aes(x = diversity, color = group_var), linewidth = 1) +
+      labs(color = group_label) +
       xlab("Diversity") +
       ylab("Density") +
       theme_linedraw(base_size = text.size) +
@@ -238,10 +271,10 @@ PlotDiversity <- function (
 
     if (is.null(colors)) {
       p1 <- p1 +
-        scale_fill_manual(values = group_colors)
+        scale_color_manual(values = group_colors)
     } else {
       p1 <- p1 +
-        scale_fill_manual(values = colors)
+        scale_color_manual(values = colors)
     }
 
   }

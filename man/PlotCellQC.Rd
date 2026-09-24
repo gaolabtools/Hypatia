@@ -20,7 +20,9 @@ PlotCellQC(
 
 \item{group.by}{One or more \code{colData} column names used to define cell groups.}
 
-\item{colors}{A vector of colors to use for the plot.}
+\item{colors}{A vector of cell-group colors, optionally named by group label.
+If \code{NULL}, uses the shared categorical group palette: ten fixed colors,
+or the qualitative HCL \code{"Dark 3"} palette for more than ten groups.}
 
 \item{pt.size}{Point size.}
 
@@ -37,4 +39,17 @@ A patchwork object when \code{combine = TRUE}; otherwise a named list of ggplot 
 }
 \description{
 Plots \code{nTranscript}, \code{nGene}, and \code{nCount} QC metrics by cell group.
+}
+\details{
+Three violin plots show the distributions of detected transcripts
+(\code{nTranscript}), detected genes (\code{nGene}), and total isoform counts (\code{nCount})
+with individual cells overlaid. A fourth panel plots \code{nTranscript} against
+\code{nCount} and reports their Pearson correlation across all plotted cells.
+
+The plots use the QC values already stored in \code{colData(object)}. Grouping
+defaults to \code{project}; multiple \code{group.by} columns are joined with \verb{_}.
+Use \code{combine = FALSE} to customize the four panels independently.
+}
+\seealso{
+\code{\link[=CreateSCE]{CreateSCE()}}, \code{\link[=SubsetCells]{SubsetCells()}}, \code{\link[=SubsetTranscripts]{SubsetTranscripts()}}
 }

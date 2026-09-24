@@ -16,19 +16,44 @@ NormalizeCounts(
 \arguments{
 \item{object}{A \code{SingleCellExperiment} object.}
 
-\item{method.use}{Normalization method. Options include \code{"LogNormalize"}, \code{"TPM"}, and \code{"FT"}. A new assay will be created (or overwritten) with name "logcounts", "tpmcounts", or "ftcounts", respectively.}
+\item{method.use}{Normalization method: \code{"LogNormalize"}, \code{"TPM"}, or \code{"FT"}. Creates or overwrites \code{"logcounts"}, \code{"tpmcounts"}, or \code{"ftcounts"}, respectively.}
 
-\item{scale.factor}{Scale factor for log and Freeman-Tukey normalization methods.}
+\item{scale.factor}{Scale factor for \code{"LogNormalize"} and \code{"FT"}.}
 
-\item{gtf}{A \code{GRanges} object containing transcript structural annotations used for TPM normalization.}
+\item{gtf}{Optional \code{GRanges} object with exon annotations for TPM normalization, as described in \code{\link[=CreateSCE]{CreateSCE()}}. Replaces the stored GTF and transcript exon ranges when supplied for TPM.}
 
-\item{gtf.transcript.id}{Metadata column name in \code{gtf} containing transcript IDs.}
+\item{gtf.transcript.id}{Metadata column in \code{gtf} containing transcript IDs matching \code{rownames(object)}. If \code{NULL}, uses \code{metadata(object)$gtf.transcript.id} when available.}
 
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
 }
 \value{
-Returns the object with a new assay containing normalized counts.
+The input object with the selected normalized assay added.
 }
 \description{
-Normalizes raw isoform counts.
+Adds a normalized assay to a \code{SingleCellExperiment} object.
+}
+\details{
+\itemize{
+\item \code{"LogNormalize"}: Divides counts by the total counts in each cell,
+multiplies by \code{scale.factor}, and applies \code{log1p()} (natural logarithm).
+Results are stored in \code{"logcounts"}.
+\item \code{"TPM"}: Divides counts by spliced transcript lengths in kilobases, then scales
+the length-adjusted counts to total one million per nonempty cell.
+Cells with zero total counts remain zero. Results are stored in
+\code{"tpmcounts"}.
+\item \code{"FT"}: Divides counts by the total counts in each cell, multiplies by
+\code{scale.factor}, and applies the Freeman-Tukey transformation
+\code{sqrt(x) + sqrt(x + 1)} to stored sparse entries. Implicit sparse zeros
+remain zero. Results are stored in \code{"ftcounts"}.
+}
+
+TPM lengths are the summed widths of non-overlapping exon ranges for each
+transcript, including retained introns when represented within exon records.
+Transcript biotype labels do not determine which bases are counted.
+A supplied GTF takes precedence; otherwise existing exon ranges
+in a \code{GRangesList} are used, or reconstructed from the stored GTF when absent.
+A single genomic span in a \code{GRanges} is insufficient without exon annotations.
+Exons must have positive widths and share a chromosome and strand within
+each transcript. The full GTF and its transcript-ID column are stored together
+in \code{metadata(object)$GTF} and \code{metadata(object)$gtf.transcript.id}.
 }

@@ -19,6 +19,7 @@ test_that("group.by supports column names with spaces", {
       group.1 = "Glut neuron",
       group.2 = "GABA neuron",
       genes = "MEG3",
+      permutation = FALSE,
       quiet = TRUE
     )
   )

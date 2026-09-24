@@ -9,11 +9,11 @@
 
 A data frame with 56,642 rows and 7 columns:
 \describe{
-\item{\code{structural_category}}{Structural category of the transcript. One of full-splice_match", "incomplete-splice_match", "novel_in_catalog", "novel_not_in_catalog", "genic", "antisense", "fusion", "intergenic", "genic_intron". (SQANTI3}
+\item{\code{structural_category}}{Structural category of the transcript: \code{"full-splice_match"}, \code{"incomplete-splice_match"}, \code{"novel_in_catalog"}, \code{"novel_not_in_catalog"}, \code{"genic"}, \code{"antisense"}, \code{"fusion"}, \code{"intergenic"}, or \code{"genic_intron"}. (SQANTI3)}
 \item{\code{gene_id}}{Associated Ensembl gene ID of the transcript.}
-\item{\code{RTS_stage}}{Logical; \code{TRUE} if transcript contains one ore more RT switching artifacts. (SQANTI3)}
+\item{\code{RTS_stage}}{Logical; \code{TRUE} if transcript contains one or more RT switching artifacts. (SQANTI3)}
 \item{\code{within_CAGE_peak}}{Logical; \code{TRUE} if transcript start site is within a CAGE peak. (SQANTI3)}
-\item{\code{within_polyA_site}}{Logical; \code{TRUE} if transcript start site is within a polyA site. (SQANTI3)}
+\item{\code{within_polyA_site}}{Logical; \code{TRUE} if transcript end site is within a polyA site. (SQANTI3)}
 \item{\code{gene_name}}{Associated gene name of the transcript.}
 \item{\code{transcript_name}}{Associated transcript name of the transcript.}
 ...
