@@ -73,11 +73,29 @@ test_that("RunDIV works with active transcript IDs", {
       boot.iter = 3,
       boot.fraction = 1,
       genes = "gene1",
+      p.adj = "none",
       quiet = TRUE
     )
   })
   expect_equal(res$stats$gene, "gene1")
-  expect_true("supported" %in% names(res$stats))
+  expect_equal(res$stats$padj, res$stats$pval)
+})
+
+test_that("RunDIV rejects p.adjust method names not used by stats::p.adjust", {
+
+  gbm <-
+    CreateSCE(
+      countData = gbm_countData,
+      colData = gbm_colData,
+      rowData = gbm_rowData,
+      active.group.id = "cell_type",
+      quiet = TRUE
+    )
+
+  expect_error(
+    RunDIV(gbm, p.adj = "Bonferroni", quiet = TRUE),
+    "element of set"
+  )
 })
 
 test_that("RunDIV calculates diversity using only transcripts that pass min.tx.cts", {
@@ -122,6 +140,7 @@ test_that("RunDIV calculates diversity using only transcripts that pass min.tx.c
     boot.iter = 4,
     boot.fraction = 1,
     include.single = FALSE,
+    p.adj = "none",
     quiet = TRUE
   )
 
@@ -186,6 +205,7 @@ test_that("RunDIV supports a fixed number of bootstrap cell draws", {
     boot.iter = 1,
     boot.ncells = 1,
     include.single = FALSE,
+    p.adj = "none",
     quiet = TRUE
   )
 
@@ -238,6 +258,7 @@ test_that("RunDIV reports biological cell-to-cell diversity dispersion", {
     boot.fraction = 1,
     include.single = FALSE,
     cell.dispersion = FALSE,
+    p.adj = "none",
     quiet = TRUE
   )
   set.seed(1024)
@@ -253,6 +274,7 @@ test_that("RunDIV reports biological cell-to-cell diversity dispersion", {
       boot.iter = 2,
       boot.fraction = 1,
       include.single = FALSE,
+      p.adj = "none",
       quiet = FALSE
     ),
     type = "message"
@@ -345,6 +367,7 @@ test_that("diversity functions classify genes by effective isoform counts", {
     prop.thresh = 0.2,
     boot.iter = 3,
     boot.fraction = 1,
+    p.adj = "none",
     quiet = TRUE
   )
   set.seed(1024)
@@ -359,6 +382,7 @@ test_that("diversity functions classify genes by effective isoform counts", {
     prop.thresh = 0.5,
     boot.iter = 3,
     boot.fraction = 1,
+    p.adj = "none",
     quiet = TRUE
   )
 
@@ -369,7 +393,7 @@ test_that("diversity functions classify genes by effective isoform counts", {
   expect_equal(run_high_threshold$stats$n.effective.2, 1L)
   expect_equal(run_high_threshold$stats$div.class.2, "monoform")
   expect_equal(run_default$data, run_high_threshold$data, tolerance = 1e-12)
-  numeric_stats <- c("avgDiv.1", "avgDiv.2", "div.diff", "div.diff.lower", "div.diff.upper")
+  numeric_stats <- c("avgDiv.1", "avgDiv.2", "div.diff", "pval", "padj")
   expect_equal(
     run_default$stats[numeric_stats],
     run_high_threshold$stats[numeric_stats],
@@ -388,6 +412,7 @@ test_that("diversity functions classify genes by effective isoform counts", {
     min.tx.cts = 3,
     boot.iter = 3,
     boot.fraction = 1,
+    p.adj = "none",
     quiet = TRUE
   )
   expect_equal(run_shannon_top2$stats$div.class.1, "monoform")
@@ -405,6 +430,7 @@ test_that("diversity functions classify genes by effective isoform counts", {
     min.tx.cts = 3,
     boot.iter = 3,
     boot.fraction = 1,
+    p.adj = "none",
     quiet = TRUE
   )
   expect_equal(
@@ -596,6 +622,7 @@ test_that("diversity functions classify genes by effective isoform counts", {
       min.tx.cts = 3,
       boot.iter = 1,
       boot.fraction = 1,
+      p.adj = "none",
       quiet = FALSE
     )),
     type = "message"

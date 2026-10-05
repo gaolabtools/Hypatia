@@ -21,8 +21,8 @@ RunDIU(
   perm.iter = 1000,
   perm.statistics = c("chisq", "max_delta"),
   bootstrap = TRUE,
-  boot.iter = 5000,
-  boot.fraction = 1,
+  boot.iter = 100,
+  boot.fraction = 0.6,
   boot.ncells = NULL,
   boot.conf = 0.95,
   p.adj = "BH",
@@ -67,13 +67,13 @@ proportion difference (\code{"max_delta"}).}
 
 \item{bootstrap}{Logical; if \code{TRUE}, bootstrap cells within each comparison group to estimate uncertainty in transcript proportion differences.}
 
-\item{boot.iter}{Number of bootstrap iterations. Default: 5000.}
+\item{boot.iter}{Number of bootstrap iterations.}
 
-\item{boot.fraction}{Proportion of cells sampled from each comparison group per bootstrap iteration. Default: 1 (each group's original cell count).}
+\item{boot.fraction}{Proportion of cells sampled from each comparison group per bootstrap iteration.}
 
 \item{boot.ncells}{Optional fixed number of cell draws sampled with replacement from each comparison group per bootstrap iteration. Cannot be supplied together with \code{boot.fraction}.}
 
-\item{boot.conf}{Nominal confidence level for percentile bootstrap intervals. Default: 0.95.}
+\item{boot.conf}{Confidence level for percentile bootstrap intervals.}
 
 \item{p.adj}{P-value adjustment method. Must be one of \code{stats::p.adjust.methods}.}
 
@@ -129,7 +129,7 @@ p-value.}
 \item{\code{cramers.v}}{Cramer's V calculated from the uncorrected Pearson
 Chi-square statistic.}
 \item{\code{approx}}{A count-based heuristic: \code{"valid"} when more than 80\% of observed contingency-table counts exceed 5 and all are positive; \code{"warning"} otherwise. This does not check expected counts. \code{NA} for Fisher's test.}
-\item{\code{boot.prop.diff.mean}, \code{boot.prop.diff.lower}, \code{boot.prop.diff.upper}}{Bootstrap mean and percentile interval for the signed proportion difference of the transcript associated with \code{max.prop.diff}. Values are \code{NA} when \code{bootstrap = FALSE} or no finite differences are available. Interval bounds are also \code{NA} when fewer than two finite differences are available.}
+\item{\code{boot.prop.diff.mean}, \code{boot.prop.diff.lower}, \code{boot.prop.diff.upper}}{Bootstrap mean and percentile confidence interval for the transcript associated with \code{max.prop.diff}. Values are \code{NA} when \code{bootstrap = FALSE}.}
 \item{\code{boot.valid.iter}}{Number of finite bootstrap differences used for the summaries.}
 }
 }
@@ -164,26 +164,9 @@ from the selected contingency-table test's p-values.
 
 With \code{bootstrap = TRUE}, cells are sampled with replacement within each
 group. Each iteration draws \code{ceiling(boot.fraction * ncol(group))} cells,
-or \code{boot.ncells} when supplied. The defaults use 5000 iterations and each
-group's original sample size (\code{boot.fraction = 1}). Differences are computed
-within matching iterations; only finite differences enter the summaries.
-Interval bounds are unavailable with fewer than two finite differences.
-With \code{boot.conf = 0.95}, bounds are the 2.5th and 97.5th percentiles.
-
-Percentile intervals summarize the signed proportion difference for the
-transcript selected from the original data as having the largest absolute
-difference. This transcript remains fixed across bootstrap iterations. The
-interval is not for the gene-level maximum absolute difference, is not
-adjusted for transcript selection, and does not provide simultaneous
-coverage across transcripts or genes. \code{max.prop.diff} retains its sign.
-Confidence levels are nominal; sparse genes, biased estimates, and many
-unavailable differences can affect interval coverage. Smaller fractions or
-fixed \code{boot.ncells} change the resampling sample size, so their unadjusted
-percentiles are not automatically calibrated as confidence intervals for the
-original sample. Cells are resampled independently; donor-level or other
-clustered study designs require resampling that accounts for those units.
-Bootstrap summaries are separate from the theoretical and permutation
-p-values. Optional \code{cell.dispersion} summaries describe proportions
+or \code{boot.ncells} when supplied. Percentile intervals summarize the transcript
+with the largest observed absolute proportion difference; \code{max.prop.diff}
+retains its sign. Optional \code{cell.dispersion} summaries describe proportions
 among cells with positive retained-gene counts, separately from bootstrapping.
 
 Multiple \code{group.by} columns are joined with \verb{_}. Omitting both comparison

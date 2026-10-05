@@ -523,7 +523,6 @@ test_that("RunDIU bootstraps transcript proportions without changing test statis
     min.gene.cts = 0,
     min.gene.pct = 0,
     min.tx.cts = 0,
-    bootstrap = FALSE,
     p.adj = "none",
     quiet = TRUE
   )
@@ -623,7 +622,6 @@ test_that("RunDIU bootstraps transcript proportions without changing test statis
     min.gene.pct = 0,
     min.tx.cts = 0,
     simulate.p = TRUE,
-    bootstrap = FALSE,
     p.adj = "none",
     quiet = TRUE
   )

@@ -16,18 +16,17 @@ RunDIV(
   min.gene.pct = 0.05,
   min.gene.cts = 15,
   min.tx.cts = 1,
-  boot.iter = 5000,
-  boot.fraction = 1,
+  boot.iter = 100,
+  boot.fraction = 0.6,
   boot.ncells = NULL,
   include.single = TRUE,
   order = NULL,
   genes = NULL,
+  p.adj = "bonferroni",
   quiet = FALSE,
   cell.dispersion = FALSE,
   top.n = NULL,
-  renormalize = FALSE,
-  div.diff.thresh = 0.1,
-  support.thresh = 0.975
+  renormalize = FALSE
 )
 }
 \arguments{
@@ -53,9 +52,9 @@ RunDIV(
 
 \item{min.tx.cts}{Minimum total transcript counts in at least one comparison group for inclusion in diversity calculations. Effective isoform counts apply this threshold separately within each group.}
 
-\item{boot.iter}{Number of bootstrap iterations to perform. Default: 5000.}
+\item{boot.iter}{Number of bootstrap iterations to perform.}
 
-\item{boot.fraction}{Proportion of cells sampled from each comparison group per bootstrap iteration. Default: 1 (each group's original cell count).}
+\item{boot.fraction}{Proportion of cells sampled from each comparison group per bootstrap iteration.}
 
 \item{boot.ncells}{Optional fixed number of cell draws sampled with replacement from each comparison group per bootstrap iteration. Cannot be supplied together with \code{boot.fraction}.}
 
@@ -65,6 +64,8 @@ RunDIV(
 
 \item{genes}{Optional vector of active gene IDs to test. Genes are still subject to filtering.}
 
+\item{p.adj}{P-value adjustment method. Must be one of \code{stats::p.adjust.methods}.}
+
 \item{quiet}{Logical; if \code{TRUE}, suppresses messages.}
 
 \item{cell.dispersion}{Logical; if \code{TRUE}, summarize cell-to-cell diversity among cells with positive retained-gene counts.}
@@ -72,10 +73,6 @@ RunDIV(
 \item{top.n}{Optional number of the most abundant isoforms to include in diversity calculations. If \code{NULL}, all isoforms are included. Must be at least 2 when supplied.}
 
 \item{renormalize}{Logical; if \code{TRUE}, rescale the selected isoform proportions to sum to one before calculating diversity.}
-
-\item{div.diff.thresh}{Nonnegative minimum diversity difference for bootstrap support. Differences must strictly exceed this threshold in magnitude. Default: 0.10; choose a value appropriate for the selected entropy scale. Independent of \code{entropy.thresh}, which controls monoform/polyform classification.}
-
-\item{support.thresh}{Directional bootstrap support cutoff, greater than 0.5 and at most 1. Default: 0.975.}
 }
 \value{
 A list containing two data frames:
@@ -104,11 +101,9 @@ A data frame containing statistical results with columns:
 \item{\code{gene}}{The gene being tested.}
 \item{\code{avgDiv.1}}{Average of bootstrapped isoform diversity of the gene for cells in \code{group.1}.}
 \item{\code{avgDiv.2}}{Average of bootstrapped isoform diversity of the gene for cells in \code{group.2}.}
-\item{\code{div.diff}}{Mean finite within-iteration difference (\code{group.1} - \code{group.2}). Equals the difference of group-wise bootstrap means when both sides are finite in every iteration.}
-\item{\code{div.diff.lower}, \code{div.diff.upper}}{The 2.5th and 97.5th percentiles of finite within-iteration diversity differences (95\% percentile interval). \code{NA_real_} if fewer than two differences are finite.}
-\item{\code{support.positive}, \code{support.negative}}{Fractions of finite differences strictly above \code{div.diff.thresh} and strictly below \code{-div.diff.thresh}, respectively. \code{NA_real_} if no differences are finite.}
-\item{\code{boot.valid.iter}}{Number of iterations with finite diversity values on both sides.}
-\item{\code{supported}}{Logical flag indicating that either directional support reaches \code{support.thresh}. \code{NA} if fewer than two differences are finite. This flag does not control multiple testing.}
+\item{\code{div.diff}}{The difference in averaged isoform diversities between groups (\code{group.1} - \code{group.2}).}
+\item{\code{pval}}{P-value from the Wilcoxon rank-sum test.}
+\item{\code{padj}}{Adjusted p-value, calculated separately within each comparison.}
 \item{\code{n.effective.1}, \code{n.effective.2}}{Number of transcripts with within-gene proportion greater than or equal to \code{prop.thresh} in each group.}
 \item{\code{div.class.1}}{\code{"monoform"} when \code{avgDiv.1} is at or below \code{entropy.thresh} and \code{"polyform"} otherwise.}
 \item{\code{div.class.2}}{\code{"monoform"} when \code{avgDiv.2} is at or below \code{entropy.thresh} and \code{"polyform"} otherwise.}
@@ -116,11 +111,10 @@ A data frame containing statistical results with columns:
 }
 }
 Rows in \verb{$data} are ordered by \code{group.1}, \code{group.2}, and \code{gene}. Rows in
-\verb{$stats} are ordered by \code{group.1}, \code{group.2}, and \code{gene}.
+\verb{$stats} are ordered by \code{group.1}, \code{group.2}, \code{padj}, and \code{gene}.
 }
 \description{
-Assesses differential isoform diversity between cell groups using directional
-bootstrap support for an effect threshold.
+Tests genes for differential isoform diversity between cell groups.
 }
 \details{
 Genes must meet \code{min.gene.pct} and \code{min.gene.cts} in both comparison
@@ -132,28 +126,10 @@ Cells are sampled with replacement within each group for \code{boot.iter}
 iterations. Each iteration draws \code{ceiling(boot.fraction * ncol(group))} cells,
 or \code{boot.ncells} when supplied, and calculates diversity from their pooled
 transcript counts. The entropy indices and optional \code{top.n} selection and
-renormalization follow \code{\link[=GetDiversity]{GetDiversity()}}. \code{avgDiv} averages available bootstrap
-values, and classification applies \code{entropy.thresh} to that average.
-
-Bootstrap support subtracts group 2 diversity from group 1
-diversity within each iteration. Only iterations with finite values on both
-sides enter the support fractions and percentile interval. Genes with no
-valid differences remain in the output with unavailable support. \code{supported}
-is \code{TRUE} when at least two differences are finite and either directional
-support is at least \code{support.thresh}. Results are returned for all retained
-genes; filter \verb{$stats} by \code{supported} to select bootstrap-supported effects.
-Support fractions describe resampling stability, not posterior probabilities
-or adjusted p-values.
-The default 0.975 directional cutoff approximately corresponds to a 95\%
-percentile interval wholly outside the effect band when bootstrap interval
-coverage is valid. No false discovery rate control is implied.
-
-A conventional cell bootstrap uses each group's original sample size
-(\code{boot.fraction = 1}). Smaller fractions or fixed \code{boot.ncells} change the
-resampling sample size; their percentile intervals are not automatically
-calibrated as confidence intervals for the original sample. This function
-resamples cells independently within groups; donor-level or other clustered
-study designs require a resampling procedure accounting for those units.
+renormalization follow \code{\link[=GetDiversity]{GetDiversity()}}. A two-sided, unpaired Wilcoxon
+rank-sum test with an asymptotic p-value compares the bootstrap diversity
+values. \code{avgDiv} averages available bootstrap values, and classification
+applies \code{entropy.thresh} to that average.
 
 Effective isoform counts are calculated from the original pooled counts,
 applying \code{min.tx.cts} separately in each group, then counting proportions
@@ -164,6 +140,7 @@ with positive retained-gene counts, rather than bootstrap uncertainty.
 Multiple \code{group.by} columns are joined with \verb{_}. Omitting both comparison
 arguments compares each group with the remaining cells; exactly two groups
 produce one comparison. Multiple labels on either side pool their cells.
+P-values are adjusted within each comparison using Bonferroni by default.
 Call \code{set.seed()} for reproducible results; no seed is set internally.
 An error is returned if no genes pass filtering across all comparisons.
 }
