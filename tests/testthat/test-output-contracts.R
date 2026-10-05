@@ -109,9 +109,12 @@ div_data_schema <- c(
 div_stats_schema <- c(
   group.1 = "character", group.2 = "character", gene = "character",
   avgDiv.1 = "double", avgDiv.2 = "double", div.diff = "double",
-  pval = "double", padj = "double", n.effective.1 = "integer",
+  n.effective.1 = "integer",
   n.effective.2 = "integer", div.class.1 = "character",
-  div.class.2 = "character"
+  div.class.2 = "character", div.diff.lower = "double",
+  div.diff.upper = "double", support.positive = "double",
+  support.negative = "double", boot.valid.iter = "integer",
+  supported = "logical"
 )
 
 dei_data_schema <- c(
@@ -214,7 +217,7 @@ test_that("Run function schemas, list columns, and ordering are stable", {
   )
   expect_rows_ordered_by(div$data, c("group.1", "group.2", "gene"))
   expect_rows_ordered_by(
-    div$stats, c("group.1", "group.2", "padj", "gene")
+    div$stats, c("group.1", "group.2", "gene")
   )
   expect_rows_ordered_by(
     dei$data, c("group.1", "group.2", "gene", "transcript")

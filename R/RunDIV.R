@@ -1,6 +1,7 @@
 #' Run isoform diversity analysis
 #'
-#' Tests genes for differential isoform diversity between cell groups.
+#' Assesses differential isoform diversity between cell groups using directional
+#' bootstrap support for an effect threshold.
 #'
 #' @param object A `SingleCellExperiment` object.
 #' @param group.by One or more `colData` column names used to define cell groups. If `NULL`, `metadata(object)$active.group.id` is used.
@@ -14,16 +15,17 @@
 #' @param min.gene.cts Minimum total gene counts required in each group.
 #' @param min.tx.cts Minimum total transcript counts in at least one comparison group for inclusion in diversity calculations. Effective isoform counts apply this threshold separately within each group.
 #' @param cell.dispersion Logical; if `TRUE`, summarize cell-to-cell diversity among cells with positive retained-gene counts.
-#' @param boot.iter Number of bootstrap iterations to perform.
-#' @param boot.fraction Proportion of cells sampled from each comparison group per bootstrap iteration.
+#' @param boot.iter Number of bootstrap iterations to perform. Default: 5000.
+#' @param boot.fraction Proportion of cells sampled from each comparison group per bootstrap iteration. Default: 1 (each group's original cell count).
 #' @param boot.ncells Optional fixed number of cell draws sampled with replacement from each comparison group per bootstrap iteration. Cannot be supplied together with `boot.fraction`.
 #' @param include.single Logical; if `FALSE`, genes with only one associated transcript after filtering will be excluded from the analysis.
 #' @param order Entropy order. Corresponds to `q` for Tsallis and `alpha` for Renyi. At order 1, Tsallis and Renyi use their Shannon entropy limit, and NormalizedRenyi uses normalized Shannon entropy.
 #' @param genes Optional vector of active gene IDs to test. Genes are still subject to filtering.
-#' @param p.adj P-value adjustment method. Must be one of `stats::p.adjust.methods`.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #' @param top.n Optional number of the most abundant isoforms to include in diversity calculations. If `NULL`, all isoforms are included. Must be at least 2 when supplied.
 #' @param renormalize Logical; if `TRUE`, rescale the selected isoform proportions to sum to one before calculating diversity.
+#' @param div.diff.thresh Nonnegative minimum diversity difference for bootstrap support. Differences must strictly exceed this threshold in magnitude. Default: 0.10; choose a value appropriate for the selected entropy scale. Independent of `entropy.thresh`, which controls monoform/polyform classification.
+#' @param support.thresh Directional bootstrap support cutoff, greater than 0.5 and at most 1. Default: 0.975.
 #'
 #' @returns A list containing two data frames:
 #' \describe{
@@ -51,9 +53,11 @@
 #'       \item{`gene`}{The gene being tested.}
 #'       \item{`avgDiv.1`}{Average of bootstrapped isoform diversity of the gene for cells in `group.1`.}
 #'       \item{`avgDiv.2`}{Average of bootstrapped isoform diversity of the gene for cells in `group.2`.}
-#'       \item{`div.diff`}{The difference in averaged isoform diversities between groups (`group.1` - `group.2`).}
-#'       \item{`pval`}{P-value from the Wilcoxon rank-sum test.}
-#'       \item{`padj`}{Adjusted p-value, calculated separately within each comparison.}
+#'       \item{`div.diff`}{Mean finite within-iteration difference (`group.1` - `group.2`). Equals the difference of group-wise bootstrap means when both sides are finite in every iteration.}
+#'       \item{`div.diff.lower`, `div.diff.upper`}{The 2.5th and 97.5th percentiles of finite within-iteration diversity differences (95% percentile interval). `NA_real_` if fewer than two differences are finite.}
+#'       \item{`support.positive`, `support.negative`}{Fractions of finite differences strictly above `div.diff.thresh` and strictly below `-div.diff.thresh`, respectively. `NA_real_` if no differences are finite.}
+#'       \item{`boot.valid.iter`}{Number of iterations with finite diversity values on both sides.}
+#'       \item{`supported`}{Logical flag indicating that either directional support reaches `support.thresh`. `NA` if fewer than two differences are finite. This flag does not control multiple testing.}
 #'       \item{`n.effective.1`, `n.effective.2`}{Number of transcripts with within-gene proportion greater than or equal to `prop.thresh` in each group.}
 #'       \item{`div.class.1`}{`"monoform"` when `avgDiv.1` is at or below `entropy.thresh` and `"polyform"` otherwise.}
 #'       \item{`div.class.2`}{`"monoform"` when `avgDiv.2` is at or below `entropy.thresh` and `"polyform"` otherwise.}
@@ -61,7 +65,7 @@
 #'   }
 #' }
 #' Rows in `$data` are ordered by `group.1`, `group.2`, and `gene`. Rows in
-#' `$stats` are ordered by `group.1`, `group.2`, `padj`, and `gene`.
+#' `$stats` are ordered by `group.1`, `group.2`, and `gene`.
 #' @details Genes must meet `min.gene.pct` and `min.gene.cts` in both comparison
 #' groups. Transcripts are retained when their total counts meet `min.tx.cts`
 #' in either group. This retained set is used for bootstrapping; `include.single`
@@ -71,10 +75,28 @@
 #' iterations. Each iteration draws `ceiling(boot.fraction * ncol(group))` cells,
 #' or `boot.ncells` when supplied, and calculates diversity from their pooled
 #' transcript counts. The entropy indices and optional `top.n` selection and
-#' renormalization follow [GetDiversity()]. A two-sided, unpaired Wilcoxon
-#' rank-sum test with an asymptotic p-value compares the bootstrap diversity
-#' values. `avgDiv` averages available bootstrap values, and classification
-#' applies `entropy.thresh` to that average.
+#' renormalization follow [GetDiversity()]. `avgDiv` averages available bootstrap
+#' values, and classification applies `entropy.thresh` to that average.
+#'
+#' Bootstrap support subtracts group 2 diversity from group 1
+#' diversity within each iteration. Only iterations with finite values on both
+#' sides enter the support fractions and percentile interval. Genes with no
+#' valid differences remain in the output with unavailable support. `supported`
+#' is `TRUE` when at least two differences are finite and either directional
+#' support is at least `support.thresh`. Results are returned for all retained
+#' genes; filter `$stats` by `supported` to select bootstrap-supported effects.
+#' Support fractions describe resampling stability, not posterior probabilities
+#' or adjusted p-values.
+#' The default 0.975 directional cutoff approximately corresponds to a 95%
+#' percentile interval wholly outside the effect band when bootstrap interval
+#' coverage is valid. No false discovery rate control is implied.
+#'
+#' A conventional cell bootstrap uses each group's original sample size
+#' (`boot.fraction = 1`). Smaller fractions or fixed `boot.ncells` change the
+#' resampling sample size; their percentile intervals are not automatically
+#' calibrated as confidence intervals for the original sample. This function
+#' resamples cells independently within groups; donor-level or other clustered
+#' study designs require a resampling procedure accounting for those units.
 #'
 #' Effective isoform counts are calculated from the original pooled counts,
 #' applying `min.tx.cts` separately in each group, then counting proportions
@@ -85,7 +107,6 @@
 #' Multiple `group.by` columns are joined with `_`. Omitting both comparison
 #' arguments compares each group with the remaining cells; exactly two groups
 #' produce one comparison. Multiple labels on either side pool their cells.
-#' P-values are adjusted within each comparison using Bonferroni by default.
 #' Call `set.seed()` for reproducible results; no seed is set internally.
 #' An error is returned if no genes pass filtering across all comparisons.
 #' @seealso [GetDiversity()], [PlotDiversity()]
@@ -95,7 +116,6 @@
 #' @import SummarizedExperiment
 #' @import dplyr
 #' @importFrom purrr reduce
-#' @importFrom stats p.adjust wilcox.test
 
 RunDIV <- function (
     object,
@@ -109,17 +129,18 @@ RunDIV <- function (
     min.gene.pct = 0.05,
     min.gene.cts = 15,
     min.tx.cts = 1,
-    boot.iter = 100,
-    boot.fraction = 0.6,
+    boot.iter = 5000,
+    boot.fraction = 1,
     boot.ncells = NULL,
     include.single = TRUE,
     order = NULL,
     genes = NULL,
-    p.adj = "bonferroni",
     quiet = FALSE,
     cell.dispersion = FALSE,
     top.n = NULL,
-    renormalize = FALSE
+    renormalize = FALSE,
+    div.diff.thresh = 0.10,
+    support.thresh = 0.975
 ) {
 
   # Check inputs
@@ -144,8 +165,13 @@ RunDIV <- function (
   assertNumber(min.gene.cts, lower = 0, finite = TRUE)
   assertNumber(min.tx.cts, lower = 0, finite = TRUE)
   assertFlag(cell.dispersion)
-  assertNumber(boot.iter, lower = 1, finite = TRUE)
+  assertNumber(div.diff.thresh, lower = 0, finite = TRUE)
+  assertNumber(support.thresh, lower = 0.5, upper = 1, finite = TRUE)
+  if (support.thresh <= 0.5) {
+    stop("`support.thresh` must be greater than 0.5.", call. = FALSE)
+  }
   boot.fraction.supplied <- !missing(boot.fraction)
+  assertCount(boot.iter, positive = TRUE)
   assertNumber(boot.fraction, lower = 0.01, upper = 1, finite = TRUE)
   assertCount(boot.ncells, positive = TRUE, null.ok = TRUE)
   if (!is.null(boot.ncells) && boot.fraction.supplied) {
@@ -154,7 +180,6 @@ RunDIV <- function (
   assertFlag(include.single)
   assertNumber(order, lower = 0, finite = TRUE, null.ok = TRUE)
   assertCharacter(genes, null.ok = TRUE, any.missing = FALSE, unique = TRUE)
-  p.adj <- .PAdjustMethod(p.adj)
   assertFlag(quiet)
   assertCount(top.n, positive = TRUE, null.ok = TRUE)
   if (!is.null(top.n) && top.n < 2) {
@@ -357,86 +382,42 @@ RunDIV <- function (
       grp2_boot_ncells <- boot.ncells
     }
 
-    ## perform bootstrap subsampling on filtered object
-    boot_result <- replicate(boot.iter, {
-      ## col index
-      grp1_col_idx <- sample(seq_len(ncol(filt_object_grp1)), size = grp1_boot_ncells, replace = TRUE)
-      grp2_col_idx <- sample(seq_len(ncol(filt_object_grp2)), size = grp2_boot_ncells, replace = TRUE)
-
-      ## subsample objects
-      boot_object_grp1 <- filt_object_grp1[, grp1_col_idx, drop = FALSE]
-      boot_object_grp2 <- filt_object_grp2[, grp2_col_idx, drop = FALSE]
-
-      ## aggregate transcript counts
-      boot_agg_cts_df <- data.frame("gene.id.1" = rowData(boot_object_grp1)[[active.gene.id]],
-                               "gene.id.2" = rowData(boot_object_grp2)[[active.gene.id]],
-                               "gene.id" = rowData(boot_object_grp1)[[active.gene.id]],
-                               "cts.1" = rowSums(assay(boot_object_grp1, assay.use)),
-                               "cts.2" = rowSums(assay(boot_object_grp2, assay.use)))
-
-      if (!identical(boot_agg_cts_df$gene.id.1, boot_agg_cts_df$gene.id.2)) {
-        stop("Gene ids are inconsistent.")
-      }
-
-      boot_agg_cts_df <- boot_agg_cts_df %>%
-        select(-gene.id.1, -gene.id.2) %>%
-        rownames_to_column(var = "transcript")
-
-      ## calculate diversity
-      div_data <- boot_agg_cts_df %>%
-        group_by(gene.id) %>%
-        mutate(grp.1 = group.1,
-               grp.2 = group.2,
-               prop.1 = cts.1 / sum(cts.1),
-               prop.2 = cts.2 / sum(cts.2),
-               div.1 = div.func(x = prop.1),
-               div.2 = div.func(x = prop.2)) %>%
-        ungroup() %>%
-        distinct(gene.id, grp.1, grp.2, div.1, div.2)
-
-    },
-    simplify = FALSE
+    ## Work on count matrices directly; avoid copying SCE metadata per draw.
+    bootstrap_matrices <- .BootstrapDiversityMatrices(
+      assay(filt_object_grp1, assay.use), assay(filt_object_grp2, assay.use),
+      rowData(filt_object_grp1)[[active.gene.id]],
+      grp1_boot_ncells, grp2_boot_ncells, boot.iter, div.func
+    )
+    mat.div.1 <- bootstrap_matrices$div.1
+    mat.div.2 <- bootstrap_matrices$div.2
+    bootstrap_meta <- data.frame(
+      gene.id = bootstrap_matrices$gene, grp.1 = group.1, grp.2 = group.2
     )
 
     ## comparison results
-    mat.div.1 <- do.call(cbind, lapply(boot_result, `[[`, "div.1"))
-    mat.div.2 <- do.call(cbind, lapply(boot_result, `[[`, "div.2"))
-
     comp_result <- data.frame(
-      "gene.id" = boot_result[[1]]$gene.id,
-      "grp.1" = boot_result[[1]]$grp.1,
-      "grp.2" = boot_result[[1]]$grp.2,
+      "gene.id" = bootstrap_meta$gene.id,
+      "grp.1" = bootstrap_meta$grp.1,
+      "grp.2" = bootstrap_meta$grp.2,
       "avgDiv.1" = rowMeans(mat.div.1, na.rm = TRUE),
       "avgDiv.2" = rowMeans(mat.div.2, na.rm = TRUE))
 
-    comp_result <- comp_result %>%
-      mutate(
-        "div.diff" = avgDiv.1 - avgDiv.2,
+    bootstrap_stats <- bind_rows(lapply(seq_len(nrow(mat.div.1)), function(i) {
+      .BootstrapDiversitySupport(
+        mat.div.1[i, ], mat.div.2[i, ], div.diff.thresh, support.thresh
       )
-
-    if (sum(is.na(comp_result$div.diff)) > 0) {
-      if (!quiet) message("  \u2139 Warning: ", sum(is.na(comp_result$div.diff)), " genes have 0 counts after bootstrap sampling.\n    Try increasing filtering parameters or iterations.")
+    }))
+    comp_result <- bind_cols(comp_result, bootstrap_stats)
+    comp_result$avgDiv.1[!is.finite(comp_result$avgDiv.1)] <- NA_real_
+    comp_result$avgDiv.2[!is.finite(comp_result$avgDiv.2)] <- NA_real_
+    if (!quiet && any(comp_result$boot.valid.iter < boot.iter)) {
+      message("  ", sum(comp_result$boot.valid.iter < boot.iter),
+              " genes have unavailable bootstrap differences; see boot.valid.iter.")
     }
 
-    ## Wilcox test
-    pvals <- sapply(1:nrow(mat.div.1), function(i) {
-      tryCatch(
-        {wilcox.test(mat.div.1[i, ], mat.div.2[i, ], paired = FALSE, exact = FALSE)$p.value},
-        error = function(e) {NA}
-      )
-    })
-    comp_result <- comp_result %>%
-      mutate("pval" = pvals)
-
-    ## remove failed bootstrap genes
-    comp_result <- comp_result %>%
-      filter(!is.na(div.diff))
-
-    ## p value adjustment
     comp_result <- comp_result %>%
       left_join(effective_data, by = "gene.id") %>%
       mutate(
-        "padj" = p.adjust(pval, method = p.adj),
         "class.1" = .DiversityClass(avgDiv.1, entropy.thresh),
         "class.2" = .DiversityClass(avgDiv.2, entropy.thresh)
       )
@@ -449,12 +430,13 @@ RunDIV <- function (
              "div.class.1" = class.1,
              "div.class.2" = class.2) %>%
       select(group.1, group.2, gene, avgDiv.1, avgDiv.2, div.diff,
-             pval, padj, n.effective.1, n.effective.2,
-             div.class.1, div.class.2)
+             n.effective.1, n.effective.2, div.class.1, div.class.2,
+             div.diff.lower, div.diff.upper, support.positive, support.negative,
+             boot.valid.iter, supported)
 
-    genes <- boot_result[[1]]$gene.id
-    grp1 <- boot_result[[1]]$grp.1
-    grp2 <- boot_result[[1]]$grp.2
+    genes <- bootstrap_meta$gene.id
+    grp1 <- bootstrap_meta$grp.1
+    grp2 <- bootstrap_meta$grp.2
     div.grp1 <- lapply(seq_along(genes), function(i) mat.div.1[i, ])
     div.grp2 <- lapply(seq_along(genes), function(i) mat.div.2[i, ])
 
@@ -512,7 +494,7 @@ RunDIV <- function (
   }
   if (length(stats_list) > 0) {
     return_list$stats <- as.data.frame(reduce(stats_list, rbind)) %>%
-      arrange(group.1, group.2, padj, gene)
+      arrange(group.1, group.2, gene)
 
   } else {
     return_list$stats <- data.frame("group.1" = character(),
@@ -521,12 +503,16 @@ RunDIV <- function (
                                     "avgDiv.1" = numeric(),
                                     "avgDiv.2" = numeric(),
                                     "div.diff" = numeric(),
-                                    "pval" = numeric(),
-                                    "padj" = numeric(),
                                     "n.effective.1" = integer(),
                                     "n.effective.2" = integer(),
                                     "div.class.1" = character(),
-                                    "div.class.2" = character())
+                                    "div.class.2" = character(),
+                                    "div.diff.lower" = numeric(),
+                                    "div.diff.upper" = numeric(),
+                                    "support.positive" = numeric(),
+                                    "support.negative" = numeric(),
+                                    "boot.valid.iter" = integer(),
+                                    "supported" = logical())
   }
 
   if (length(stats_list) == 0 && length(data_list) == 0) {
@@ -536,4 +522,56 @@ RunDIV <- function (
   if (!quiet) message("Done.")
   return(return_list)
 
+}
+
+# Summarize differences from matching bootstrap iterations. Missing values
+# must be removed jointly so that draws from different iterations never pair.
+.BootstrapDiversitySupport <- function(div.1, div.2, div.diff.thresh,
+                                       support.thresh) {
+  delta <- div.1 - div.2
+  delta <- delta[is.finite(div.1) & is.finite(div.2) & is.finite(delta)]
+  n_valid <- length(delta)
+  result <- data.frame(
+    div.diff = NA_real_,
+    div.diff.lower = NA_real_,
+    div.diff.upper = NA_real_,
+    support.positive = NA_real_,
+    support.negative = NA_real_,
+    boot.valid.iter = as.integer(n_valid),
+    supported = NA
+  )
+  if (n_valid == 0L) return(result)
+
+  result$div.diff <- mean(delta)
+  result$support.positive <- mean(delta > div.diff.thresh)
+  result$support.negative <- mean(delta < -div.diff.thresh)
+  if (n_valid >= 2L) {
+    interval <- stats::quantile(delta, probs = c(0.025, 0.975), names = FALSE)
+    result$div.diff.lower <- interval[1]
+    result$div.diff.upper <- interval[2]
+    result$supported <- result$support.positive >= support.thresh ||
+      result$support.negative >= support.thresh
+  }
+  result
+}
+
+# Retain whole-cell transcript vectors and share each cell resample across genes.
+.BootstrapDiversityMatrices <- function(counts.1, counts.2, gene.ids,
+                                        ncells.1, ncells.2, boot.iter, div.func) {
+  gene_rows <- split(seq_along(gene.ids), factor(gene.ids, levels = unique(gene.ids)))
+  div.1 <- matrix(NA_real_, nrow = length(gene_rows), ncol = boot.iter)
+  div.2 <- matrix(NA_real_, nrow = length(gene_rows), ncol = boot.iter)
+  for (b in seq_len(boot.iter)) {
+    cells.1 <- sample(seq_len(ncol(counts.1)), size = ncells.1, replace = TRUE)
+    cells.2 <- sample(seq_len(ncol(counts.2)), size = ncells.2, replace = TRUE)
+    cts.1 <- rowSums(counts.1[, cells.1, drop = FALSE])
+    cts.2 <- rowSums(counts.2[, cells.2, drop = FALSE])
+    div.1[, b] <- vapply(gene_rows, function(rows) {
+      div.func(cts.1[rows] / sum(cts.1[rows]))
+    }, numeric(1))
+    div.2[, b] <- vapply(gene_rows, function(rows) {
+      div.func(cts.2[rows] / sum(cts.2[rows]))
+    }, numeric(1))
+  }
+  list(gene = names(gene_rows), div.1 = div.1, div.2 = div.2)
 }

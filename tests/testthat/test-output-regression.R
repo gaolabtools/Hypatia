@@ -36,6 +36,7 @@ test_that("analysis outputs match the regression baseline", {
     min.gene.cts = 0,
     min.tx.cts = 1,
     boot.iter = 10,
+    boot.fraction = 0.6,
     cell.dispersion = FALSE,
     quiet = TRUE
   )
@@ -96,13 +97,12 @@ test_that("analysis outputs match the regression baseline", {
   )
   unchanged_div_stats <- setdiff(
     names(baseline$run_div$stats),
-    c("log2FC", "div.class.1", "div.class.2")
+    c("log2FC", "div.class.1", "div.class.2", "pval", "padj")
   )
   baseline_div_stats <- baseline$run_div$stats[
     order(
       baseline$run_div$stats$group.1,
       baseline$run_div$stats$group.2,
-      baseline$run_div$stats$padj,
       baseline$run_div$stats$gene
     ),
     ,

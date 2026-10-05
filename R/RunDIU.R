@@ -23,10 +23,10 @@
 #'   proportion difference (`"max_delta"`).
 #' @param cell.dispersion Logical; if `TRUE`, summarize cell-to-cell transcript proportion dispersion among cells with positive retained-gene counts.
 #' @param bootstrap Logical; if `TRUE`, bootstrap cells within each comparison group to estimate uncertainty in transcript proportion differences.
-#' @param boot.iter Number of bootstrap iterations.
-#' @param boot.fraction Proportion of cells sampled from each comparison group per bootstrap iteration.
+#' @param boot.iter Number of bootstrap iterations. Default: 5000.
+#' @param boot.fraction Proportion of cells sampled from each comparison group per bootstrap iteration. Default: 1 (each group's original cell count).
 #' @param boot.ncells Optional fixed number of cell draws sampled with replacement from each comparison group per bootstrap iteration. Cannot be supplied together with `boot.fraction`.
-#' @param boot.conf Confidence level for percentile bootstrap intervals.
+#' @param boot.conf Nominal confidence level for percentile bootstrap intervals. Default: 0.95.
 #' @param p.adj P-value adjustment method. Must be one of `stats::p.adjust.methods`.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #'
@@ -77,7 +77,7 @@
 #'       \item{`cramers.v`}{Cramer's V calculated from the uncorrected Pearson
 #'       Chi-square statistic.}
 #'       \item{`approx`}{A count-based heuristic: `"valid"` when more than 80% of observed contingency-table counts exceed 5 and all are positive; `"warning"` otherwise. This does not check expected counts. `NA` for Fisher's test.}
-#'       \item{`boot.prop.diff.mean`, `boot.prop.diff.lower`, `boot.prop.diff.upper`}{Bootstrap mean and percentile confidence interval for the transcript associated with `max.prop.diff`. Values are `NA` when `bootstrap = FALSE`.}
+#'       \item{`boot.prop.diff.mean`, `boot.prop.diff.lower`, `boot.prop.diff.upper`}{Bootstrap mean and percentile interval for the signed proportion difference of the transcript associated with `max.prop.diff`. Values are `NA` when `bootstrap = FALSE` or no finite differences are available. Interval bounds are also `NA` when fewer than two finite differences are available.}
 #'       \item{`boot.valid.iter`}{Number of finite bootstrap differences used for the summaries.}
 #'     }
 #'   }
@@ -106,9 +106,26 @@
 #'
 #' With `bootstrap = TRUE`, cells are sampled with replacement within each
 #' group. Each iteration draws `ceiling(boot.fraction * ncol(group))` cells,
-#' or `boot.ncells` when supplied. Percentile intervals summarize the transcript
-#' with the largest observed absolute proportion difference; `max.prop.diff`
-#' retains its sign. Optional `cell.dispersion` summaries describe proportions
+#' or `boot.ncells` when supplied. The defaults use 5000 iterations and each
+#' group's original sample size (`boot.fraction = 1`). Differences are computed
+#' within matching iterations; only finite differences enter the summaries.
+#' Interval bounds are unavailable with fewer than two finite differences.
+#' With `boot.conf = 0.95`, bounds are the 2.5th and 97.5th percentiles.
+#'
+#' Percentile intervals summarize the signed proportion difference for the
+#' transcript selected from the original data as having the largest absolute
+#' difference. This transcript remains fixed across bootstrap iterations. The
+#' interval is not for the gene-level maximum absolute difference, is not
+#' adjusted for transcript selection, and does not provide simultaneous
+#' coverage across transcripts or genes. `max.prop.diff` retains its sign.
+#' Confidence levels are nominal; sparse genes, biased estimates, and many
+#' unavailable differences can affect interval coverage. Smaller fractions or
+#' fixed `boot.ncells` change the resampling sample size, so their unadjusted
+#' percentiles are not automatically calibrated as confidence intervals for the
+#' original sample. Cells are resampled independently; donor-level or other
+#' clustered study designs require resampling that accounts for those units.
+#' Bootstrap summaries are separate from the theoretical and permutation
+#' p-values. Optional `cell.dispersion` summaries describe proportions
 #' among cells with positive retained-gene counts, separately from bootstrapping.
 #'
 #' Multiple `group.by` columns are joined with `_`. Omitting both comparison
@@ -146,8 +163,8 @@ RunDIU <- function(
     perm.iter = 1000,
     perm.statistics = c("chisq", "max_delta"),
     bootstrap = TRUE,
-    boot.iter = 100,
-    boot.fraction = 0.6,
+    boot.iter = 5000,
+    boot.fraction = 1,
     boot.ncells = NULL,
     boot.conf = 0.95,
     p.adj = "BH",
@@ -498,7 +515,12 @@ RunDIU <- function(
         grp2_boot_ncells <- boot.ncells
       }
 
-      boot_result <- replicate(boot.iter, {
+      ## Pool counts directly to avoid rebuilding grouped data frames per draw.
+      boot_gene_factor <- factor(boot_gene_ids, levels = unique(boot_gene_ids))
+      boot_gene_index <- as.integer(boot_gene_factor)
+      boot_prop_1 <- matrix(NA_real_, nrow = length(boot_transcripts), ncol = boot.iter)
+      boot_prop_2 <- matrix(NA_real_, nrow = length(boot_transcripts), ncol = boot.iter)
+      for (b in seq_len(boot.iter)) {
         grp1_col_idx <- sample(
           seq_len(ncol(boot_expr_mat_grp1)),
           size = grp1_boot_ncells,
@@ -510,23 +532,14 @@ RunDIU <- function(
           replace = TRUE
         )
 
-        data.frame(
-          gene.id = boot_gene_ids,
-          prop.1 = rowSums(boot_expr_mat_grp1[, grp1_col_idx, drop = FALSE]),
-          prop.2 = rowSums(boot_expr_mat_grp2[, grp2_col_idx, drop = FALSE])
-        ) %>%
-          group_by(gene.id) %>%
-          mutate(
-            prop.1 = prop.1 / sum(prop.1),
-            prop.2 = prop.2 / sum(prop.2),
-            prop.diff = prop.1 - prop.2
-          ) %>%
-          ungroup()
-      }, simplify = FALSE)
-
-      boot_prop_1 <- do.call(cbind, lapply(boot_result, `[[`, "prop.1"))
-      boot_prop_2 <- do.call(cbind, lapply(boot_result, `[[`, "prop.2"))
-      boot_prop_diff <- do.call(cbind, lapply(boot_result, `[[`, "prop.diff"))
+        cts.1 <- rowSums(boot_expr_mat_grp1[, grp1_col_idx, drop = FALSE])
+        cts.2 <- rowSums(boot_expr_mat_grp2[, grp2_col_idx, drop = FALSE])
+        gene_cts.1 <- as.numeric(base::rowsum(cts.1, boot_gene_factor, reorder = FALSE))
+        gene_cts.2 <- as.numeric(base::rowsum(cts.2, boot_gene_factor, reorder = FALSE))
+        boot_prop_1[, b] <- cts.1 / gene_cts.1[boot_gene_index]
+        boot_prop_2[, b] <- cts.2 / gene_cts.2[boot_gene_index]
+      }
+      boot_prop_diff <- boot_prop_1 - boot_prop_2
 
       boot_data <- data.frame(transcript = boot_transcripts)
       boot_data$boot.prop.1 <- lapply(seq_along(boot_transcripts), function(i) boot_prop_1[i, ])
@@ -606,10 +619,10 @@ RunDIU <- function(
     }, numeric(1))
     boot_alpha <- (1 - boot.conf) / 2
     boot_prop_diff_lower <- vapply(selected_boot_diff, function(x) {
-      if (length(x) == 0) NA_real_ else unname(stats::quantile(x, probs = boot_alpha))
+      if (length(x) < 2) NA_real_ else unname(stats::quantile(x, probs = boot_alpha))
     }, numeric(1))
     boot_prop_diff_upper <- vapply(selected_boot_diff, function(x) {
-      if (length(x) == 0) NA_real_ else unname(stats::quantile(x, probs = 1 - boot_alpha))
+      if (length(x) < 2) NA_real_ else unname(stats::quantile(x, probs = 1 - boot_alpha))
     }, numeric(1))
 
     diu_stats <- diu_stats %>%

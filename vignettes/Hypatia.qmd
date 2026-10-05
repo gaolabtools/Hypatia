@@ -527,6 +527,10 @@ Isoform usage refers to the relative abundances of transcript isoforms produced 
 
 `RunDIU()` identifies genes whose isoform proportions differ between cell groups. Genes are first filtered for adequate detection, then tested using the selected statistical method (uncorrected Pearson Chi-square by default). Cell bootstrapping is also applied to estimate uncertainty in transcript-proportion differences. Use `set.seed()` for reproducible resampling results.
 
+Bootstrapping defaults to 5,000 iterations (`boot.iter = 5000`) with each group's original sample size (`boot.fraction = 1`). With `boot.conf = 0.95`, the interval uses the 2.5th and 97.5th percentiles of finite within-iteration proportion differences. Its target is the **signed difference for the transcript selected from the original data** as having the largest absolute difference; that transcript stays fixed across iterations. This is not a confidence interval for the gene-level maximum absolute difference and is not adjusted for transcript selection or multiple testing.
+
+Confidence levels are nominal. Smaller `boot.fraction` values or fixed `boot.ncells` alter the resampling sample size, so their unadjusted percentile intervals are not automatically calibrated for the original sample. Cell resampling does not account for variability across biological donors; clustered designs require an appropriate resampling unit. Inspect `boot.valid.iter` for sparse genes with unavailable differences. Interval bounds are `NA` when fewer than two finite differences are available, while the mean is reported whenever at least one difference is finite.
+
 The tutorial compares Glut and GABA neurons:
 
 ```{r rundiu-glutvgaba}
@@ -634,7 +638,7 @@ glutvsgaba_diu$stats |>
 - `padj.perm.delta`: Multiple-testing adjusted maximum-delta permutation p-value, calculated separately for each comparison.
 - `cramers.v`: Cramer's V calculated from the uncorrected Pearson Chi-square statistic.
 - `approx`: A count-based heuristic: `"valid"` when more than 80% of observed contingency-table counts exceed 5 and all counts are positive; `"warning"` otherwise. This does not check expected counts. Fisher's test reports `NA`.
-- `boot.prop.diff.mean`, `boot.prop.diff.lower`, `boot.prop.diff.upper`: Bootstrap mean and confidence interval for the transcript associated with `max.prop.diff`.
+- `boot.prop.diff.mean`, `boot.prop.diff.lower`, `boot.prop.diff.upper`: Bootstrap mean and nominal percentile confidence interval for the signed difference of the transcript associated with `max.prop.diff`. Bounds are unavailable with fewer than two finite differences; the mean is unavailable with none. All three values are `NA` when bootstrapping is disabled.
 - `boot.valid.iter`: Number of finite bootstrap differences used for the summaries.
 
 Set `permutation = TRUE` to calculate empirical p-values from `perm.statistics = c("chisq", "max_delta")`.
@@ -780,7 +784,9 @@ Isoform diversity is a measure of the heterogeneity of transcript isoforms produ
 
 ### {{< fa flask >}} RunDIV {#rundiv}
 
-`RunDIV()` compares isoform diversity using the Wilcoxon test on bootstrapped gene-level diversities (default: Tsallis entropy), estimated by bootstrap iterations following gene filtering. The number of effective isoforms are also quantified using `prop.thresh`, while monoform/polyform classification is controlled by `entropy.thresh`. Refer to the help page (`?RunDIV`) for more details on parameters. Call `set.seed()` before `RunDIV()` for reproducible results.
+`RunDIV()` compares isoform diversity using directional bootstrap support for a minimum diversity difference (default: Tsallis entropy). By default, it draws 5,000 bootstrap samples with replacement within each group, using each group's original cell count. Every iteration calculates diversity from pooled isoform counts and subtracts group 2 diversity from group 1 diversity. The effect threshold is `div.diff.thresh = 0.10`, and a difference is supported when at least 97.5% of valid iterations exceed this threshold in the same direction (`support.thresh = 0.975`). Choose the effect threshold according to the entropy measure and biological question; 0.10 is not a universal diversity cutoff.
+
+The number of effective isoforms is quantified using `prop.thresh`, while monoform/polyform classification is controlled separately by `entropy.thresh`. Call `set.seed()` before `RunDIV()` for reproducible results. This method resamples cells independently; comparisons involving multiple donors or other clustered observations require a resampling design that accounts for those units. Refer to `?RunDIV` for parameter details.
 
 Here, each cell group is compared with all remaining cells:
 
@@ -790,6 +796,17 @@ Here, each cell group is compared with all remaining cells:
 set.seed(1024)
 gbm_div <- RunDIV(gbm)
 ```
+
+Select bootstrap-supported differences using the logical `supported` column:
+
+```{r rundiv-supported}
+#| eval: false
+
+supported_div <- gbm_div$stats |>
+  dplyr::filter(supported)
+```
+
+These are bootstrap-supported effects, not discoveries at an adjusted significance level. Support fractions measure consistency under resampling; they are not posterior probabilities or FDR-adjusted p-values. A 97.5% directional cutoff approximately corresponds to a 95% percentile interval entirely outside the effect band when bootstrap interval coverage is valid. Smaller `boot.fraction` values or fixed `boot.ncells` change the resampling sample size, so their percentile intervals are not automatically calibrated for the original sample. Inspect `boot.valid.iter` for genes with unavailable differences.
 
 ::: {.callout-note collapse="true" title="Defining comparisons"}
 
@@ -864,25 +881,29 @@ In the example above, the `cell.*` output columns contain typed `NA` values - se
 
 gbm_div$stats |>
   dplyr::filter(group.1 == "Astrocyte") |>
-  dplyr::arrange(padj) |>
+  dplyr::arrange(dplyr::desc(supported), dplyr::desc(abs(div.diff))) |>
   preview_table()
 ```
 
 ::: {.callout-note .hypatia-output-reference appearance="simple" icon="false"}
 
-`$stats` contains results from the statistical tests:
+`$stats` contains diversity summaries and bootstrap support:
 
 - `group.1` & `group.2`: The two cell groups being compared.
 - `gene`: Gene for which the isoform diversity is computed and compared.
 - `avgDiv.1`: Average of bootstrapped isoform diversity of the gene for cells in `group.1`.
 - `avgDiv.2`: Average of bootstrapped isoform diversity of the gene for cells in `group.2`.
-- `div.diff`: Difference in averaged diversity (`group.1` - `group.2`).
-- `pval`: P-value from the Wilcoxon rank-sum test comparing isoform diversity across the two groups.
-- `padj`: Adjusted p-value within each comparison (default: Bonferroni, `p.adj = "bonferroni"`).
+- `div.diff`: Mean finite within-iteration diversity difference (`group.1` - `group.2`).
+- `div.diff.lower`, `div.diff.upper`: The 2.5th and 97.5th percentiles of valid bootstrap differences (95% percentile interval).
+- `support.positive`, `support.negative`: Fractions of valid differences above `div.diff.thresh` and below `-div.diff.thresh`, respectively.
+- `boot.valid.iter`: Number of iterations with finite diversity differences.
+- `supported`: Whether either directional support reaches `support.thresh`; `NA` if fewer than two valid differences are available. The function returns all retained genes; use this column to filter supported effects.
 - `n.effective.1`: Number of effective isoforms for the gene in `group.1`.
 - `n.effective.2`: Number of effective isoforms for the gene in `group.2`.
 - `div.class.1`: "monoform" when `avgDiv.1` is at or below `entropy.thresh` and "polyform" otherwise.
 - `div.class.2`: "monoform" when `avgDiv.2` is at or below `entropy.thresh` and "polyform" otherwise.
+
+With fewer than two finite differences, the interval is unavailable; with none, `div.diff` and support fractions are also unavailable. Genes with no valid differences remain in the bootstrap output so that resampling failures can be inspected.
 
 :::
 
