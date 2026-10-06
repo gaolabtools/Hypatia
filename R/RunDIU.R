@@ -178,7 +178,6 @@ RunDIU <- function(
   if (is.null(group.by)) {
     group.by <- metadata(object)$active.group.id
     assertChoice(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
-    assertFALSE(anyMissing(colData(object)[[group.by]]))
   } else {
     assertSubset(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
   }
@@ -458,7 +457,8 @@ RunDIU <- function(
           null <- null_stats[[statistic]][i, ]
           if (!is.finite(observed)) return(NA_real_)
           null <- null[is.finite(null)]
-          (1 + sum(null >= observed)) / (1 + perm.iter)
+          if (length(null) == 0L) return(NA_real_)
+          (1 + sum(null >= observed)) / (1 + length(null))
         }, numeric(1))
         names(pvals) <- perm_gene_ids_unique
         pvals

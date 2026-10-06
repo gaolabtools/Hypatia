@@ -82,7 +82,6 @@ PlotExpression <- function(
   if (is.null(group.by)) {
     group.by <- metadata(object)$active.group.id
     assertChoice(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
-    assertFALSE(anyMissing(colData(object)[[group.by]]))
   } else {
     assertSubset(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
   }
@@ -198,6 +197,11 @@ PlotExpression <- function(
     if (ncol(coords) < 2) {
       stop("At least two dimensions are required.")
     }
+    dim_names <- colnames(coords)
+    if (is.null(dim_names)) dim_names <- rep("", ncol(coords))
+    missing_names <- is.na(dim_names) | !nzchar(dim_names)
+    dim_names[missing_names] <- paste0(dim.use, "_", which(missing_names))
+    colnames(coords) <- make.unique(dim_names)
     dim_names <- colnames(coords)[1:2]
     plotdata <- expr_mat %>%
       as.matrix() %>%

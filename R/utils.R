@@ -67,6 +67,7 @@
   group_data <- as.data.frame(colData(object))
   names(group_data) <- names(colData(object))
   group_data <- group_data[, group.by, drop = FALSE]
+  assertFALSE(anyMissing(group_data))
   do.call(paste, c(group_data, sep = sep))
 }
 
@@ -343,13 +344,13 @@
 }
 
 .NGenesPerCell <- function(countData, gene_ids) {
-  detected <- summary(countData > 0)
+  detected <- which(countData > 0, arr.ind = TRUE, useNames = FALSE)
   n_genes <- integer(ncol(countData))
   if (nrow(detected) == 0) {
     return(n_genes)
   }
 
-  genes_by_cell <- split(gene_ids[detected$i], detected$j)
+  genes_by_cell <- split(gene_ids[detected[, 1]], detected[, 2])
   n_genes[as.integer(names(genes_by_cell))] <- lengths(lapply(genes_by_cell, unique))
   n_genes
 }

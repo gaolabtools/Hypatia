@@ -1,6 +1,6 @@
 Package: Hypatia
 Title: Single-Cell Isoform Analysis
-Version: 1.4.0
+Version: 1.4.1
 Authors@R: 
     person("Timothy", "Pan", , "timothy.pan@northwestern.edu", role = c("aut", "cre"))
 Description: Comparative analysis of transcript isoforms in long-read

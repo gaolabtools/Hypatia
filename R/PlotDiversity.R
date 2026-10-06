@@ -15,10 +15,9 @@
 #' @param min.tx.cts Minimum transcript counts required before diversity is calculated.
 #' @param order Entropy order. Corresponds to `q` for Tsallis and `alpha` for Renyi. At order 1, Tsallis and Renyi use their Shannon entropy limit, and NormalizedRenyi uses normalized Shannon entropy.
 #' @param colors A vector of colors, optionally named by group label (lollipop
-#'   and density) or gene ID (parallel coordinates). If `NULL`, cell groups use
-#'   the shared categorical group palette: ten fixed colors, or the qualitative
-#'   HCL `"Dark 3"` palette for more than ten groups. Parallel-coordinate plots
-#'   use a separate gene palette.
+#'   and density) or gene ID (parallel coordinates). If `NULL`, all plot types
+#'   use the shared categorical palette: ten fixed colors, or the qualitative
+#'   HCL `"Dark 3"` palette for more than ten groups or genes.
 #' @param text.size Text size.
 #' @param quiet Logical; if `TRUE`, suppresses messages.
 #' @param top.n Optional number of the most abundant isoforms to include in diversity calculations. If `NULL`, all isoforms are included. Must be at least 2 when supplied.
@@ -76,7 +75,6 @@ PlotDiversity <- function (
   if (is.null(group.by)) {
     group.by <- metadata(object)$active.group.id
     assertChoice(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
-    assertFALSE(anyMissing(colData(object)[[group.by]]))
   } else {
     assertSubset(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
   }
@@ -191,9 +189,8 @@ PlotDiversity <- function (
     n_group_colors <- length(unique(plotdata$group_var))
     group_colors <- .DefaultGroupColors(n_group_colors)
 
-    gene_colors <- c("#FBB463", "#80B1D3", "#F47F72", "#BDBAD8", "#FBF8B4", "#8DD1C6")
     n_gene_colors <- length(unique(plotdata$gene_query))
-    gene_colors <- .DefaultDiscreteColors(n_gene_colors, gene_colors)
+    gene_colors <- .DefaultGroupColors(n_gene_colors)
   }
 
   # Lollipop plot

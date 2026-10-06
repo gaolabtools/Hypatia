@@ -148,7 +148,6 @@ RunDIV <- function (
   if (is.null(group.by)) {
     group.by <- metadata(object)$active.group.id
     assertChoice(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
-    assertFALSE(anyMissing(colData(object)[[group.by]]))
   } else {
     assertSubset(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
   }

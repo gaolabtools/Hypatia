@@ -93,7 +93,6 @@ RunDEI <- function(
   if (is.null(group.by)) {
     group.by <- metadata(object)$active.group.id
     assertChoice(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
-    assertFALSE(anyMissing(colData(object)[[group.by]]))
   } else {
     assertSubset(group.by, c(setdiff(names(colData(object)), c("nCount", "nTranscript", "nGene"))))
   }
@@ -114,7 +113,7 @@ RunDEI <- function(
   active.gene.id <- active_ids$active.gene.id
 
   gene.id.df <- rowData(object)[active.gene.id] %>%
-    as.data.frame() %>%
+    as.data.frame(optional = TRUE) %>%
     rownames_to_column(var = "transcript") %>%
     rename("gene" = all_of(active.gene.id))
 
@@ -139,7 +138,7 @@ RunDEI <- function(
       object,
       transcripts,
       quiet = quiet,
-      min.valid = 2,
+      min.valid = 1,
       none.message = "None of the transcripts provided were found in the object."
     )
     object <- transcript_filter$object
