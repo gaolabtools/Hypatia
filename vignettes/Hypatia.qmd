@@ -525,11 +525,9 @@ Isoform usage refers to the relative abundances of transcript isoforms produced 
 
 ### {{< fa flask >}} RunDIU {#rundiu}
 
-`RunDIU()` identifies genes whose isoform proportions differ between cell groups. Genes are first filtered for adequate detection, then tested using the selected statistical method (uncorrected Pearson Chi-square by default). Cell bootstrapping is also applied to estimate uncertainty in transcript-proportion differences. Use `set.seed()` for reproducible resampling results.
+`RunDIU()` tests whether isoform proportions differ between cell groups, using Pearson's Chi-square test by default. It also resamples cells 5,000 times to estimate a 95% interval for the transcript with the largest observed proportion difference, keeping that transcript fixed across samples. Differences are calculated as **`group.1 - group.2`**, so positive values indicate higher usage in group 1.
 
-Bootstrapping defaults to 5,000 iterations (`boot.iter = 5000`) with each group's original sample size (`boot.fraction = 1`). With `boot.conf = 0.95`, the interval uses the 2.5th and 97.5th percentiles of finite within-iteration proportion differences. Its target is the **signed difference for the transcript selected from the original data** as having the largest absolute difference; that transcript stays fixed across iterations. This is not a confidence interval for the gene-level maximum absolute difference and is not adjusted for transcript selection or multiple testing.
-
-Confidence levels are nominal. Smaller `boot.fraction` values or fixed `boot.ncells` alter the resampling sample size, so their unadjusted percentile intervals are not automatically calibrated for the original sample. Cell resampling does not account for variability across biological donors; clustered designs require an appropriate resampling unit. Inspect `boot.valid.iter` for sparse genes with unavailable differences. Interval bounds are `NA` when fewer than two finite differences are available, while the mean is reported whenever at least one difference is finite.
+Use `set.seed()` for reproducible results and check `boot.valid.iter` for the number of usable bootstrap samples. See `?RunDIU` for options and guidance on interpreting the intervals.
 
 The tutorial compares Glut and GABA neurons:
 
@@ -784,9 +782,9 @@ Isoform diversity is a measure of the heterogeneity of transcript isoforms produ
 
 ### {{< fa flask >}} RunDIV {#rundiv}
 
-`RunDIV()` compares isoform diversity using directional bootstrap support for a minimum diversity difference (default: Tsallis entropy). By default, it draws 5,000 bootstrap samples with replacement within each group, using each group's original cell count. Every iteration calculates diversity from pooled isoform counts and subtracts group 2 diversity from group 1 diversity. The effect threshold is `div.diff.thresh = 0.10`, and a difference is supported when at least 97.5% of valid iterations exceed this threshold in the same direction (`support.thresh = 0.975`). Choose the effect threshold according to the entropy measure and biological question; 0.10 is not a universal diversity cutoff.
+`RunDIV()` compares isoform diversity between cell groups, using Tsallis entropy by default. It resamples cells 5,000 times and calculates diversity from pooled isoform counts. Differences are calculated as **`group.1 - group.2`**, so positive values indicate greater diversity in group 1.
 
-The number of effective isoforms is quantified using `prop.thresh`, while monoform/polyform classification is controlled separately by `entropy.thresh`. Call `set.seed()` before `RunDIV()` for reproducible results. This method resamples cells independently; comparisons involving multiple donors or other clustered observations require a resampling design that accounts for those units. Refer to `?RunDIV` for parameter details.
+By default, a difference is supported when at least 97.5% of valid bootstrap differences exceed 0.10 in magnitude in the same direction (`support.thresh = 0.975`, `div.diff.thresh = 0.10`). Choose the difference threshold to suit your diversity measure and biological question. Use `set.seed()` for reproducible results; see `?RunDIV` for other options and interpretation.
 
 Here, each cell group is compared with all remaining cells:
 
@@ -806,7 +804,7 @@ supported_div <- gbm_div$stats |>
   dplyr::filter(supported)
 ```
 
-These are bootstrap-supported effects, not discoveries at an adjusted significance level. Support fractions measure consistency under resampling; they are not posterior probabilities or FDR-adjusted p-values. A 97.5% directional cutoff approximately corresponds to a 95% percentile interval entirely outside the effect band when bootstrap interval coverage is valid. Smaller `boot.fraction` values or fixed `boot.ncells` change the resampling sample size, so their percentile intervals are not automatically calibrated for the original sample. Inspect `boot.valid.iter` for genes with unavailable differences.
+Bootstrap support measures consistency across resampled cells; it is not an adjusted p-value. Check `boot.valid.iter` for the number of valid samples.
 
 ::: {.callout-note collapse="true" title="Defining comparisons"}
 
@@ -958,6 +956,8 @@ Column descriptions:
 ### {{< fa chart-column >}} PlotDiversity {#plotdiversity}
 
 `PlotDiversity()` can be used to visualize isoform diversity across groups of cells. The `plot.type` parameter can be one of 'lollipop' (default), 'pcoord' for parallel coordinate, or 'density'. The **lollipop** and **pcoord** plot types show the diversity and entropy-based monoform/polyform classification of a few genes, while **density** plots show the distribution of diversity across genes. These plots use pooled transcript counts within each group, rather than the bootstrap means returned by `RunDIV()`.
+
+All three plot types use the same default palette. Colors identify cell groups in lollipop and density plots, and genes in parallel coordinate plots.
 
 ::: {.panel-tabset}
 

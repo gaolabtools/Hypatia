@@ -50,10 +50,9 @@ PlotDiversity(
 \item{order}{Entropy order. Corresponds to \code{q} for Tsallis and \code{alpha} for Renyi. At order 1, Tsallis and Renyi use their Shannon entropy limit, and NormalizedRenyi uses normalized Shannon entropy.}
 
 \item{colors}{A vector of colors, optionally named by group label (lollipop
-and density) or gene ID (parallel coordinates). If \code{NULL}, cell groups use
-the shared categorical group palette: ten fixed colors, or the qualitative
-HCL \code{"Dark 3"} palette for more than ten groups. Parallel-coordinate plots
-use a separate gene palette.}
+and density) or gene ID (parallel coordinates). If \code{NULL}, all plot types
+use the shared categorical palette: ten fixed colors, or the qualitative
+HCL \code{"Dark 3"} palette for more than ten groups or genes.}
 
 \item{text.size}{Text size.}
 

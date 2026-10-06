@@ -52,3 +52,34 @@ test_that("cell-group plots share defaults and respect named custom colors", {
     }
   }
 })
+
+test_that("parallel coordinates use the shared palette for gene colors", {
+  for (n in c(2, 12)) {
+    genes <- paste0("gene", seq_len(n))
+    counts <- matrix(rep(c(9, 1, 6, 4, 2, 8, 3, 7), length.out = n * 2 * 4),
+                     nrow = n * 2,
+                     dimnames = list(paste0("tx", seq_len(n * 2)), paste0("cell", 1:4)))
+    object <- CreateSCE(
+      counts,
+      data.frame(group = c("A", "A", "B", "B"), row.names = colnames(counts)),
+      data.frame(gene_id = rep(genes, each = 2), row.names = rownames(counts)),
+      active.group.id = "group", quiet = TRUE
+    )
+    gene_order <- rev(genes)
+    custom <- setNames(grDevices::hcl.colors(n, "Dark 3"), genes)
+    for (colors in list(NULL, custom)) {
+      plot <- PlotDiversity(object, genes = gene_order, plot.type = "pcoord",
+                            group.order = c("B", "A"), colors = colors, quiet = TRUE)
+      built <- ggplot2::ggplot_build(plot)
+      scale <- built$plot$scales$get_scales("colour")
+      expected <- if (is.null(colors)) {
+        Hypatia:::.DefaultGroupColors(n)
+      } else {
+        unname(colors[gene_order])
+      }
+      expect_identical(unname(scale$map(gene_order)), expected)
+      expect_setequal(built$data[[1]]$colour, expected)
+      expect_setequal(built$data[[2]]$colour, expected)
+    }
+  }
+})

@@ -76,12 +76,15 @@ NormalizeCounts <- function(
   # Normalization
   raw_counts <- counts(object)
   col_sum <- colSums(raw_counts)
+  cell_scale <- numeric(length(col_sum))
+  nonempty <- col_sum > 0
+  cell_scale[nonempty] <- scale.factor / col_sum[nonempty]
 
   ## LogNormalize
   if (method.use == "LogNormalize") {
     if (!quiet) message("Performing log normalization...")
 
-    norm_counts <- raw_counts %*% Diagonal(x = scale.factor / col_sum)
+    norm_counts <- raw_counts %*% Diagonal(x = cell_scale)
     norm_counts <- log1p(norm_counts)
     dimnames(norm_counts) <- dimnames(raw_counts)
 
@@ -125,8 +128,9 @@ NormalizeCounts <- function(
   if (method.use == "FT") {
     if (!quiet) message("Performing Freeman-Tukey normalization...")
 
-    norm_counts <- raw_counts %*% Diagonal(x = scale.factor / col_sum)
-    norm_counts@x <- sqrt(norm_counts@x) + sqrt(norm_counts@x + 1)
+    norm_counts <- raw_counts %*% Diagonal(x = cell_scale)
+    nonzero <- norm_counts@x != 0
+    norm_counts@x[nonzero] <- sqrt(norm_counts@x[nonzero]) + sqrt(norm_counts@x[nonzero] + 1)
     dimnames(norm_counts) <- dimnames(raw_counts)
 
     assay(object, "ftcounts") <- norm_counts
