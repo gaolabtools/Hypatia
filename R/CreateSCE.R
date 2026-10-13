@@ -3,8 +3,8 @@
 #' Creates a `SingleCellExperiment` object from isoform counts, cell-level metadata, and transcript-level metadata.
 #'
 #' @param countData Numeric matrix, sparse matrix, or data frame of raw isoform counts. Row names are transcript IDs and column names are cell IDs.
-#' @param colData A data frame of cell-level metadata. Row names must match the column names of `countData`.
-#' @param rowData A data frame of transcript-level metadata. Row names must match the row names of `countData`. Must include the column named by `active.gene.id`.
+#' @param colData A data frame of cell-level metadata. Row names must include every column name of `countData`; rows are reordered to match and extra rows are ignored.
+#' @param rowData A data frame of transcript-level metadata. Row names must include every row name of `countData`; rows are reordered to match and extra rows are ignored. Must include the column named by `active.gene.id`.
 #' @param active.gene.id Name of the `rowData` column containing gene IDs for each transcript.
 #' @param active.group.id Optional `colData` column name to use as the default cell grouping in downstream functions.
 #' @param active.transcript.id Optional `rowData` column name containing unique transcript IDs to report instead of row names.
@@ -15,8 +15,10 @@
 #'
 #' @returns A `SingleCellExperiment` object with a `"counts"` assay, QC columns in `colData`/`rowData`, and Hypatia settings in `metadata(object)`.
 #'
-#' @details Metadata row names must already match the count-matrix identifiers
-#' in the same order. Counts must be numeric, non-negative, and non-missing;
+#' @details Metadata rows are matched by name to the count-matrix identifiers,
+#' preserving count-matrix order. Missing cell or transcript metadata IDs produce
+#' an error listing the missing IDs; extra metadata rows are ignored.
+#' Counts must be numeric, finite, non-negative, and non-missing;
 #' dense matrices and data frames are converted to a sparse `dgCMatrix`.
 #' Cell metadata must contain at least one column with two distinct non-missing
 #' values. Active gene IDs may repeat; active transcript IDs must be unique.
@@ -60,6 +62,7 @@ CreateSCE <- function(
 ) {
 
   # Check inputs
+  assertFlag(quiet)
   if (!quiet) message("\nChecking inputs... ")
 
   ## countData
@@ -67,20 +70,20 @@ CreateSCE <- function(
   assertCharacter(rownames(countData), any.missing = FALSE, unique = TRUE)
   assertCharacter(colnames(countData), any.missing = FALSE, unique = TRUE)
   if (inherits(countData, "dgCMatrix")) {
-    assertNumeric(countData@x, lower = 0, any.missing = FALSE)
+    assertNumeric(countData@x, lower = 0, finite = TRUE, any.missing = FALSE)
   } else if (is.data.frame(countData)) {
     if (!all(vapply(countData, is.numeric, logical(1)))) {
       stop("countData must contain only numeric columns.")
     }
-    assertNumeric(unlist(countData, use.names = FALSE), lower = 0, any.missing = FALSE)
+    assertNumeric(unlist(countData, use.names = FALSE), lower = 0, finite = TRUE, any.missing = FALSE)
   } else {
-    assertNumeric(as.vector(countData), lower = 0, any.missing = FALSE)
+    assertNumeric(as.vector(countData), lower = 0, finite = TRUE, any.missing = FALSE)
   }
   if (!quiet) message("\u2714 countData")
 
   ## colData
   assertClass(colData, "data.frame")
-  assertTRUE(identical(rownames(colData), colnames(countData)))
+  colData <- .AlignCountMetadata(colData, colnames(countData), "colData", "cell")
   if (!any(vapply(colData, function(x) length(unique(na.omit(x))) >= 2, logical(1)))) {
     stop("colData must have at least one column with at least 2 unique non-missing values.")
   }
@@ -92,7 +95,7 @@ CreateSCE <- function(
 
   ## rowData
   assertClass(rowData, "data.frame")
-  assertTRUE(identical(rownames(rowData), rownames(countData)))
+  rowData <- .AlignCountMetadata(rowData, rownames(countData), "rowData", "transcript")
   assertChoice(active.gene.id, colnames(rowData))
   assertCharacter(rowData[[active.gene.id]], any.missing = FALSE)
   if (!is.null(active.transcript.id)) {
@@ -112,7 +115,6 @@ CreateSCE <- function(
   }
 
   assertString(project)
-  assertFlag(quiet)
 
   # Prepare countData
   if (!inherits(countData, "dgCMatrix")) {
@@ -178,4 +180,16 @@ CreateSCE <- function(
   if (!quiet) message("Done.")
 
   return(object)
+}
+
+# Match metadata before validation and QC calculation so only count-matrix
+# cells and transcripts enter the object. Never synthesize missing rows.
+.AlignCountMetadata <- function(data, ids, argument, id.type) {
+  assertCharacter(rownames(data), any.missing = FALSE, unique = TRUE)
+  index <- match(ids, rownames(data))
+  if (anyNA(index)) {
+    stop("`", argument, "` is missing ", id.type, " IDs from `countData`: ",
+         paste(ids[is.na(index)], collapse = ", "), call. = FALSE)
+  }
+  data[index, , drop = FALSE]
 }

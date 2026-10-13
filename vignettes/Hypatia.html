@@ -7,6 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Timothy Pan">
+<meta name="dcterms.date" content="2026-10-13">
 
 <title>Hypatia</title>
 <style>
@@ -2261,7 +2262,7 @@ font-size: 2.5em;
       <div>
       <div class="quarto-title-meta-heading">Published</div>
       <div class="quarto-title-meta-contents">
-        <p class="date">10/6/26</p>
+        <p class="date">10/13/26</p>
       </div>
     </div>
     
@@ -2429,7 +2430,7 @@ margin-bottom: 1.25rem;
 <p>Hypatia requires 3 inputs:</p>
 <ol type="1">
 <li><p><strong>Single-cell isoform expression matrix</strong></p>
-<p>A numeric data frame, dense matrix, or sparse <code>dgCMatrix</code> of non-negative raw isoform counts. Row names are unique transcript IDs and column names are unique cell IDs.</p></li>
+<p>A numeric data frame, dense matrix, or sparse <code>dgCMatrix</code> of finite, non-negative raw isoform counts with no missing values. Row names are unique transcript IDs and column names are unique cell IDs.</p></li>
 <li><p><strong>Cell-level metadata</strong></p>
 <p>A data frame with at least one column of cell annotations (cell types, clusters) necessary for differential analysis. Row names are cell IDs matching the count matrix.</p></li>
 <li><p><strong>Transcript-level metadata</strong></p>
@@ -2600,7 +2601,7 @@ margin-bottom: 1.25rem;
 <div class="callout-body-container">
 <ol type="1">
 <li>By default, <code>CreateSCE()</code> searches for a column called <code>&quot;gene_id&quot;</code> in <code>rowData</code> for associated genes. This can be changed with <code>active.gene.id</code>.</li>
-<li>The row name orders in <code>rowData</code> and <code>colData</code> must match the row and column name orders in <code>countData</code>, respectively.</li>
+<li><code>CreateSCE()</code> matches metadata rows by ID and reorders them to match <code>countData</code>. Every cell and transcript in the count matrix must have metadata; missing IDs produce an error, and extra metadata rows are ignored.</li>
 </ol>
 </div>
 </div>
@@ -2842,6 +2843,19 @@ margin-bottom: 1.25rem;
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">1024</span>)</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>glutvsgaba_diu <span class="ot">&lt;-</span> <span class="fu">RunDIU</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>, <span class="at">group.2 =</span> <span class="st">&quot;GABA neuron&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
+<p>Set <code>permutation = TRUE</code> to test isoform usage by randomly shuffling cells between groups while keeping group sizes the same. By default, the test uses both the Chi-square statistic (<code>&quot;chisq&quot;</code>) and the largest absolute transcript proportion difference (<code>&quot;max_delta&quot;</code>). Results include BH-adjusted p-values for each comparison (<code>padj.perm</code> and <code>padj.perm.delta</code>, respectively), alongside the usual test and bootstrap results.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">1024</span>)</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>glutvsgaba_diu_perm <span class="ot">&lt;-</span> <span class="fu">RunDIU</span>(</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>, <span class="at">group.2 =</span> <span class="st">&quot;GABA neuron&quot;</span>,</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">permutation =</span> <span class="cn">TRUE</span>, <span class="at">perm.iter =</span> <span class="dv">5000</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>significant_diu <span class="ot">&lt;-</span> glutvsgaba_diu_perm<span class="sc">$</span>stats <span class="sc">|&gt;</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(padj.perm.delta <span class="sc">&lt;</span> <span class="fl">0.05</span>, <span class="fu">abs</span>(max.prop.diff) <span class="sc">&gt;</span> <span class="fl">0.10</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>This example selects genes with an adjusted maximum-difference permutation p-value below 0.05 and an observed proportion difference above 0.10 in magnitude. The effect-size filter is separate from the test. Use <code>padj.perm</code> instead to select genes using the Chi-square permutation test, or set <code>perm.statistics</code> to request just one statistic.</p>
+<p>More permutations give finer p-value resolution. This test assumes cells can be freely shuffled under the null and does not account for donor or batch structure. See <code>?RunDIU</code> for options and interpretation.</p>
 <div class="callout callout-style-default callout-note callout-titled" title="Defining comparisons">
 <div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="true" aria-label="Toggle callout">
 <div class="callout-icon-container">
@@ -2864,17 +2878,17 @@ margin-bottom: 1.25rem;
 </ul>
 <p>The examples below are alternatives and are not run in this tutorial.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Each cell group vs all other cells</span></span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>all_diu <span class="ot">&lt;-</span> <span class="fu">RunDIU</span>(gbm)</span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut neurons vs all other cells</span></span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>glut_diu <span class="ot">&lt;-</span> <span class="fu">RunDIU</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>)</span>
-<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut and GABA neurons vs all other cells</span></span>
-<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>neur_diu <span class="ot">&lt;-</span> <span class="fu">RunDIU</span>(gbm, <span class="at">group.1 =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>))</span>
-<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut vs GABA neurons</span></span>
-<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>glutvsgaba_diu <span class="ot">&lt;-</span> <span class="fu">RunDIU</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>, <span class="at">group.2 =</span> <span class="st">&quot;GABA neuron&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Each cell group vs all other cells</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>all_diu <span class="ot">&lt;-</span> <span class="fu">RunDIU</span>(gbm)</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut neurons vs all other cells</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>glut_diu <span class="ot">&lt;-</span> <span class="fu">RunDIU</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>)</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut and GABA neurons vs all other cells</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>neur_diu <span class="ot">&lt;-</span> <span class="fu">RunDIU</span>(gbm, <span class="at">group.1 =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>))</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut vs GABA neurons</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>glutvsgaba_diu <span class="ot">&lt;-</span> <span class="fu">RunDIU</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>, <span class="at">group.2 =</span> <span class="st">&quot;GABA neuron&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </div>
 </div>
@@ -3292,7 +3306,6 @@ margin-bottom: 1.25rem;
 <li><code>boot.prop.diff.mean</code>, <code>boot.prop.diff.lower</code>, <code>boot.prop.diff.upper</code>: Bootstrap mean and nominal percentile confidence interval for the signed difference of the transcript associated with <code>max.prop.diff</code>. Bounds are unavailable with fewer than two finite differences; the mean is unavailable with none. All three values are <code>NA</code> when bootstrapping is disabled.</li>
 <li><code>boot.valid.iter</code>: Number of finite bootstrap differences used for the summaries.</li>
 </ul>
-<p>Set <code>permutation = TRUE</code> to calculate empirical p-values from <code>perm.statistics = c(&quot;chisq&quot;, &quot;max_delta&quot;)</code>.</p>
 </div>
 </div>
 </div>
@@ -3301,11 +3314,11 @@ margin-bottom: 1.25rem;
 <h3 class="anchored" data-anchor-id="getusage"><i class="fa-solid fa-magnifying-glass" aria-label="magnifying-glass"></i> GetUsage</h3>
 <p><code>GetUsage()</code> quickly retrieves isoform counts and relative abundance from genes of interest. Set <code>cell.dispersion = TRUE</code> to include cell-to-cell proportion summaries.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Usage of MEG3 isoforms for all groups</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>meg3_usage <span class="ot">&lt;-</span> <span class="fu">GetUsage</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MEG3&quot;</span>)</span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Usage of MEG3 isoforms in Glut and GABA neurons only</span></span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>meg3_usage_neu <span class="ot">&lt;-</span> <span class="fu">GetUsage</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MEG3&quot;</span>, <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>), <span class="at">cell.dispersion =</span> <span class="cn">TRUE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Usage of MEG3 isoforms for all groups</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>meg3_usage <span class="ot">&lt;-</span> <span class="fu">GetUsage</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MEG3&quot;</span>)</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Usage of MEG3 isoforms in Glut and GABA neurons only</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>meg3_usage_neu <span class="ot">&lt;-</span> <span class="fu">GetUsage</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MEG3&quot;</span>, <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>), <span class="at">cell.dispersion =</span> <span class="cn">TRUE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div class="hypatia-table-title">
 <p><code>meg3_usage_neu</code></p>
@@ -3452,12 +3465,12 @@ margin-bottom: 1.25rem;
 <div class="tab-content">
 <div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
 <div class="cell" data-layout-align="center">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotUsage</span>(</span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">gene =</span> <span class="st">&quot;MEG3&quot;</span>, </span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>),</span>
-<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">min.tx.prop =</span> <span class="fl">0.10</span></span>
-<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotUsage</span>(</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">gene =</span> <span class="st">&quot;MEG3&quot;</span>, </span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>),</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">min.tx.prop =</span> <span class="fl">0.10</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -3470,14 +3483,14 @@ margin-bottom: 1.25rem;
 </div>
 <div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
 <div class="cell" data-layout-align="center">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotUsage</span>(</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">gene =</span> <span class="st">&quot;MEG3&quot;</span>, </span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;heatmap&quot;</span>, </span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>),</span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">min.tx.prop =</span> <span class="fl">0.10</span>,</span>
-<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">show.prop =</span> <span class="cn">TRUE</span></span>
-<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotUsage</span>(</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">gene =</span> <span class="st">&quot;MEG3&quot;</span>, </span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;heatmap&quot;</span>, </span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>),</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">min.tx.prop =</span> <span class="fl">0.10</span>,</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">show.prop =</span> <span class="cn">TRUE</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -3490,14 +3503,14 @@ margin-bottom: 1.25rem;
 </div>
 <div id="tabset-1-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-3-tab">
 <div class="cell" data-layout-align="center">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotUsage</span>(</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">gene =</span> <span class="st">&quot;MEG3&quot;</span>, </span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;pie&quot;</span>,</span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>),</span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">min.tx.prop =</span> <span class="fl">0.10</span>,</span>
-<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">nrow =</span> <span class="dv">3</span></span>
-<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotUsage</span>(</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">gene =</span> <span class="st">&quot;MEG3&quot;</span>, </span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;pie&quot;</span>,</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>),</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">min.tx.prop =</span> <span class="fl">0.10</span>,</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">nrow =</span> <span class="dv">3</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -3510,14 +3523,14 @@ margin-bottom: 1.25rem;
 </div>
 <div id="tabset-1-4" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-4-tab">
 <div class="cell" data-layout-align="center">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotUsage</span>(</span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
-<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">gene =</span> <span class="st">&quot;MEG3&quot;</span>, </span>
-<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;bar&quot;</span>,</span>
-<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>),</span>
-<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">min.tx.prop =</span> <span class="fl">0.10</span>,</span>
-<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">nrow =</span> <span class="dv">3</span></span>
-<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotUsage</span>(</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">gene =</span> <span class="st">&quot;MEG3&quot;</span>, </span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;bar&quot;</span>,</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>),</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">min.tx.prop =</span> <span class="fl">0.10</span>,</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">nrow =</span> <span class="dv">3</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -3541,15 +3554,25 @@ margin-bottom: 1.25rem;
 <p>By default, a difference is supported when at least 97.5% of valid bootstrap differences exceed 0.10 in magnitude in the same direction (<code>support.thresh = 0.975</code>, <code>div.diff.thresh = 0.10</code>). Choose the difference threshold to suit your diversity measure and biological question. Use <code>set.seed()</code> for reproducible results; see <code>?RunDIV</code> for other options and interpretation.</p>
 <p>Here, each cell group is compared with all remaining cells:</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">1024</span>)</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>gbm_div <span class="ot">&lt;-</span> <span class="fu">RunDIV</span>(gbm)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">1024</span>)</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>gbm_div <span class="ot">&lt;-</span> <span class="fu">RunDIV</span>(gbm)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>Select bootstrap-supported differences using the logical <code>supported</code> column:</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>supported_div <span class="ot">&lt;-</span> gbm_div<span class="sc">$</span>stats <span class="sc">|&gt;</span></span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(supported)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>supported_div <span class="ot">&lt;-</span> gbm_div<span class="sc">$</span>stats <span class="sc">|&gt;</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(supported)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>Bootstrap support measures consistency across resampled cells; it is not an adjusted p-value. Check <code>boot.valid.iter</code> for the number of valid samples.</p>
+<p>Set <code>permutation = TRUE</code> to test whether the diversity difference is larger than expected after randomly shuffling cells between groups. Group sizes stay the same, and diversity is calculated from pooled counts. Results include p-values (<code>pval.perm</code>) and BH-adjusted p-values (<code>padj.perm</code>) for each comparison, alongside bootstrap support.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">1024</span>)</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>gbm_div_perm <span class="ot">&lt;-</span> <span class="fu">RunDIV</span>(gbm, <span class="at">permutation =</span> <span class="cn">TRUE</span>, <span class="at">perm.iter =</span> <span class="dv">5000</span>)</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>significant_div <span class="ot">&lt;-</span> gbm_div_perm<span class="sc">$</span>stats <span class="sc">|&gt;</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(padj.perm <span class="sc">&lt;</span> <span class="fl">0.05</span>, <span class="fu">abs</span>(div.diff.observed) <span class="sc">&gt;</span> <span class="fl">0.10</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>This example selects genes with an adjusted p-value below 0.05 and an observed diversity difference above 0.10 in magnitude. The effect-size filter is separate from the test; choose a threshold appropriate to your diversity measure.</p>
+<p>Check <code>perm.valid.iter</code> for usable shuffles. P-values are <code>NA</code> if the original difference or any shuffled difference cannot be calculated. More permutations give finer p-value resolution. This test assumes cells can be freely shuffled under the null and does not account for donor or batch structure. See <code>?RunDIV</code> for assumptions and filtering details.</p>
 <div class="callout callout-style-default callout-note callout-titled" title="Defining comparisons">
 <div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-2-contents" aria-controls="callout-2" aria-expanded="false" aria-label="Toggle callout">
 <div class="callout-icon-container">
@@ -3572,17 +3595,17 @@ margin-bottom: 1.25rem;
 </ul>
 <p>The examples below are alternatives and are not run in this tutorial.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Each cell group vs all other cells</span></span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>all_div <span class="ot">&lt;-</span> <span class="fu">RunDIV</span>(gbm)</span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut neurons vs all other cells</span></span>
-<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>glut_div <span class="ot">&lt;-</span> <span class="fu">RunDIV</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>)</span>
-<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut and GABA neurons vs all other cells</span></span>
-<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>neur_div <span class="ot">&lt;-</span> <span class="fu">RunDIV</span>(gbm, <span class="at">group.1 =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>))</span>
-<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut vs GABA neurons</span></span>
-<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>glutvsgaba_div <span class="ot">&lt;-</span> <span class="fu">RunDIV</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>, <span class="at">group.2 =</span> <span class="st">&quot;GABA neuron&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Each cell group vs all other cells</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>all_div <span class="ot">&lt;-</span> <span class="fu">RunDIV</span>(gbm)</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut neurons vs all other cells</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>glut_div <span class="ot">&lt;-</span> <span class="fu">RunDIV</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>)</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut and GABA neurons vs all other cells</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>neur_div <span class="ot">&lt;-</span> <span class="fu">RunDIV</span>(gbm, <span class="at">group.1 =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>))</span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut vs GABA neurons</span></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>glutvsgaba_div <span class="ot">&lt;-</span> <span class="fu">RunDIV</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>, <span class="at">group.2 =</span> <span class="st">&quot;GABA neuron&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </div>
 </div>
@@ -3793,6 +3816,12 @@ margin-bottom: 1.25rem;
 <th style="text-align: right;" data-quarto-table-cell-role="th">support.negative</th>
 <th style="text-align: right;" data-quarto-table-cell-role="th">boot.valid.iter</th>
 <th style="text-align: left;" data-quarto-table-cell-role="th">supported</th>
+<th style="text-align: right;" data-quarto-table-cell-role="th">div.observed.1</th>
+<th style="text-align: right;" data-quarto-table-cell-role="th">div.observed.2</th>
+<th style="text-align: right;" data-quarto-table-cell-role="th">div.diff.observed</th>
+<th style="text-align: left;" data-quarto-table-cell-role="th">pval.perm</th>
+<th style="text-align: left;" data-quarto-table-cell-role="th">padj.perm</th>
+<th style="text-align: right;" data-quarto-table-cell-role="th">perm.valid.iter</th>
 </tr>
 </thead>
 <tbody>
@@ -3813,6 +3842,12 @@ margin-bottom: 1.25rem;
 <td style="text-align: right;">0.986</td>
 <td style="text-align: right;">5000</td>
 <td style="text-align: left;">TRUE</td>
+<td style="text-align: right;">0.115</td>
+<td style="text-align: right;">0.366</td>
+<td style="text-align: right;">-0.252</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: right;">NA</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">Astrocyte</td>
@@ -3831,6 +3866,12 @@ margin-bottom: 1.25rem;
 <td style="text-align: right;">0.923</td>
 <td style="text-align: right;">5000</td>
 <td style="text-align: left;">FALSE</td>
+<td style="text-align: right;">0.088</td>
+<td style="text-align: right;">0.310</td>
+<td style="text-align: right;">-0.222</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: right;">NA</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">Astrocyte</td>
@@ -3849,6 +3890,12 @@ margin-bottom: 1.25rem;
 <td style="text-align: right;">0.813</td>
 <td style="text-align: right;">5000</td>
 <td style="text-align: left;">FALSE</td>
+<td style="text-align: right;">0.275</td>
+<td style="text-align: right;">0.446</td>
+<td style="text-align: right;">-0.170</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: right;">NA</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">Astrocyte</td>
@@ -3867,6 +3914,12 @@ margin-bottom: 1.25rem;
 <td style="text-align: right;">0.846</td>
 <td style="text-align: right;">5000</td>
 <td style="text-align: left;">FALSE</td>
+<td style="text-align: right;">0.083</td>
+<td style="text-align: right;">0.259</td>
+<td style="text-align: right;">-0.176</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: right;">NA</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">Astrocyte</td>
@@ -3885,6 +3938,12 @@ margin-bottom: 1.25rem;
 <td style="text-align: right;">0.897</td>
 <td style="text-align: right;">5000</td>
 <td style="text-align: left;">FALSE</td>
+<td style="text-align: right;">0.036</td>
+<td style="text-align: right;">0.184</td>
+<td style="text-align: right;">-0.148</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: right;">NA</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">Astrocyte</td>
@@ -3903,6 +3962,12 @@ margin-bottom: 1.25rem;
 <td style="text-align: right;">0.000</td>
 <td style="text-align: right;">5000</td>
 <td style="text-align: left;">FALSE</td>
+<td style="text-align: right;">0.356</td>
+<td style="text-align: right;">0.200</td>
+<td style="text-align: right;">0.156</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: left;">NA</td>
+<td style="text-align: right;">NA</td>
 </tr>
 </tbody>
 </table>
@@ -3915,7 +3980,7 @@ margin-bottom: 1.25rem;
 <i class="callout-icon no-icon"></i>
 </div>
 <div class="callout-body-container">
-<p><code>$stats</code> contains diversity summaries and bootstrap support:</p>
+<p><code>$stats</code> contains diversity summaries, bootstrap support, and optional permutation results:</p>
 <ul>
 <li><code>group.1</code> &amp; <code>group.2</code>: The two cell groups being compared.</li>
 <li><code>gene</code>: Gene for which the isoform diversity is computed and compared.</li>
@@ -3926,6 +3991,10 @@ margin-bottom: 1.25rem;
 <li><code>support.positive</code>, <code>support.negative</code>: Fractions of valid differences above <code>div.diff.thresh</code> and below <code>-div.diff.thresh</code>, respectively.</li>
 <li><code>boot.valid.iter</code>: Number of iterations with finite diversity differences.</li>
 <li><code>supported</code>: Whether either directional support reaches <code>support.thresh</code>; <code>NA</code> if fewer than two valid differences are available. The function returns all retained genes; use this column to filter supported effects.</li>
+<li><code>div.observed.1</code>, <code>div.observed.2</code>: Diversity from the original pooled counts after transcript filtering.</li>
+<li><code>div.diff.observed</code>: Original-data difference (<code>group.1</code> - <code>group.2</code>) used for permutation testing.</li>
+<li><code>pval.perm</code>, <code>padj.perm</code>: Two-sided permutation p-value and adjusted p-value. Values are <code>NA</code> when testing is disabled or any required difference cannot be calculated.</li>
+<li><code>perm.valid.iter</code>: Number of usable shuffles; <code>NA</code> when permutation testing is disabled.</li>
 <li><code>n.effective.1</code>: Number of effective isoforms for the gene in <code>group.1</code>.</li>
 <li><code>n.effective.2</code>: Number of effective isoforms for the gene in <code>group.2</code>.</li>
 <li><code>div.class.1</code>: “monoform” when <code>avgDiv.1</code> is at or below <code>entropy.thresh</code> and “polyform” otherwise.</li>
@@ -3940,14 +4009,14 @@ margin-bottom: 1.25rem;
 <h3 class="anchored" data-anchor-id="getdiversity"><i class="fa-solid fa-magnifying-glass" aria-label="magnifying-glass"></i> GetDiversity</h3>
 <p><code>GetDiversity()</code> quickly retrieves pooled isoform diversity data for genes of interest. Set <code>cell.dispersion = TRUE</code> to include biological cell-to-cell diversity summaries.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Isoform diversity of gene MT3 for all groups</span></span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>mt3_div <span class="ot">&lt;-</span> <span class="fu">GetDiversity</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MT3&quot;</span>)</span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Isoform diversity of gene MT3 in OPC cells</span></span>
-<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>mt3_div_opc <span class="ot">&lt;-</span> <span class="fu">GetDiversity</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MT3&quot;</span>, <span class="at">group.subset =</span> <span class="st">&quot;OPC&quot;</span>)</span>
-<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Shannon isoform diversity of gene MT3 in OPC cells</span></span>
-<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>mt3_shannon_opc <span class="ot">&lt;-</span> <span class="fu">GetDiversity</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MT3&quot;</span>, <span class="at">group.subset =</span> <span class="st">&quot;OPC&quot;</span>, <span class="at">entropy.use =</span> <span class="st">&quot;Shannon&quot;</span>, <span class="at">cell.dispersion =</span> <span class="cn">TRUE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Isoform diversity of gene MT3 for all groups</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>mt3_div <span class="ot">&lt;-</span> <span class="fu">GetDiversity</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MT3&quot;</span>)</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Isoform diversity of gene MT3 in OPC cells</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>mt3_div_opc <span class="ot">&lt;-</span> <span class="fu">GetDiversity</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MT3&quot;</span>, <span class="at">group.subset =</span> <span class="st">&quot;OPC&quot;</span>)</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Shannon isoform diversity of gene MT3 in OPC cells</span></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>mt3_shannon_opc <span class="ot">&lt;-</span> <span class="fu">GetDiversity</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MT3&quot;</span>, <span class="at">group.subset =</span> <span class="st">&quot;OPC&quot;</span>, <span class="at">entropy.use =</span> <span class="st">&quot;Shannon&quot;</span>, <span class="at">cell.dispersion =</span> <span class="cn">TRUE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div class="hypatia-table-title">
 <p><code>mt3_shannon_opc</code></p>
@@ -4049,11 +4118,11 @@ margin-bottom: 1.25rem;
 <div class="tab-content">
 <div id="tabset-2-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-2-1-tab">
 <div class="cell" data-layout-align="center">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotDiversity</span>(</span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>  gbm,</span>
-<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">genes =</span> <span class="fu">c</span>(<span class="st">&quot;NAPEPLD&quot;</span>, <span class="st">&quot;NPEPPS&quot;</span>, <span class="st">&quot;GNG7&quot;</span>, <span class="st">&quot;ANKRD10&quot;</span>, <span class="st">&quot;PNISR&quot;</span>),</span>
-<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>)</span>
-<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotDiversity</span>(</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>  gbm,</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">genes =</span> <span class="fu">c</span>(<span class="st">&quot;NAPEPLD&quot;</span>, <span class="st">&quot;NPEPPS&quot;</span>, <span class="st">&quot;GNG7&quot;</span>, <span class="st">&quot;ANKRD10&quot;</span>, <span class="st">&quot;PNISR&quot;</span>),</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>)</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -4066,12 +4135,12 @@ margin-bottom: 1.25rem;
 </div>
 <div id="tabset-2-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-2-2-tab">
 <div class="cell" data-layout-align="center">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotDiversity</span>(</span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>  gbm,</span>
-<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">genes =</span> <span class="fu">c</span>(<span class="st">&quot;NAPEPLD&quot;</span>, <span class="st">&quot;NPEPPS&quot;</span>, <span class="st">&quot;GNG7&quot;</span>, <span class="st">&quot;ANKRD10&quot;</span>, <span class="st">&quot;PNISR&quot;</span>),</span>
-<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;pcoord&quot;</span>,</span>
-<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>)</span>
-<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotDiversity</span>(</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>  gbm,</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">genes =</span> <span class="fu">c</span>(<span class="st">&quot;NAPEPLD&quot;</span>, <span class="st">&quot;NPEPPS&quot;</span>, <span class="st">&quot;GNG7&quot;</span>, <span class="st">&quot;ANKRD10&quot;</span>, <span class="st">&quot;PNISR&quot;</span>),</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;pcoord&quot;</span>,</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>)</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -4084,12 +4153,12 @@ margin-bottom: 1.25rem;
 </div>
 <div id="tabset-2-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-2-3-tab">
 <div class="cell" data-layout-align="center">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotDiversity</span>(</span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>  gbm,</span>
-<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">genes =</span> <span class="fu">unique</span>(<span class="fu">unlist</span>(gbm_div<span class="sc">$</span>data<span class="sc">$</span>gene)),</span>
-<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;density&quot;</span>,</span>
-<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>)</span>
-<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotDiversity</span>(</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>  gbm,</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">genes =</span> <span class="fu">unique</span>(<span class="fu">unlist</span>(gbm_div<span class="sc">$</span>data<span class="sc">$</span>gene)),</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;density&quot;</span>,</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;GABA neuron&quot;</span>, <span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;Microglia&quot;</span>, <span class="st">&quot;Oligodendrocyte&quot;</span>, <span class="st">&quot;OPC&quot;</span>, <span class="st">&quot;Tumor&quot;</span>)</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -4111,7 +4180,7 @@ margin-bottom: 1.25rem;
 <h3 class="anchored" data-anchor-id="normalizecounts">NormalizeCounts</h3>
 <p>To compare single-cell isoform expression levels, raw counts must first be normalized with <code>NormalizeCounts()</code>. By default, counts are divided by the total counts per cell, multiplied by a scale factor, and log1p transformed.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>gbm <span class="ot">&lt;-</span> <span class="fu">NormalizeCounts</span>(gbm)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>gbm <span class="ot">&lt;-</span> <span class="fu">NormalizeCounts</span>(gbm)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>The normalized matrix is stored as “logcounts” in the <code>assays</code> slot. Use <code>assayNames()</code> to view available count matrices and <code>assay()</code> to fetch a specific matrix.</p>
 </section>
@@ -4119,8 +4188,8 @@ margin-bottom: 1.25rem;
 <h3 class="anchored" data-anchor-id="rundei"><i class="fa-solid fa-flask" aria-label="flask"></i> RunDEI</h3>
 <p>After normalization, <code>RunDEI()</code> can be used to compare isoform expression across cell groups. The default <code>min.pct = 0.01</code> requires transcript detection in at least 1% of cells in each group before testing and p-value adjustment. The tutorial compares pooled Glut and GABA neurons with all remaining cells:</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut and GABA neurons vs all other cells</span></span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>neur_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm, <span class="at">group.1 =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut and GABA neurons vs all other cells</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>neur_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm, <span class="at">group.1 =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div class="callout callout-style-default callout-note callout-titled" title="Defining comparisons">
 <div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
@@ -4144,17 +4213,17 @@ margin-bottom: 1.25rem;
 </ul>
 <p>The examples below are alternatives and are not run in this tutorial.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Each cell group vs all other cells</span></span>
-<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>all_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm)</span>
-<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut neurons vs all other cells</span></span>
-<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>glut_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>)</span>
-<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut and GABA neurons vs all other cells</span></span>
-<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>neur_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm, <span class="at">group.1 =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>))</span>
-<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut vs GABA neurons</span></span>
-<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>glutvsgaba_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>, <span class="at">group.2 =</span> <span class="st">&quot;GABA neuron&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Each cell group vs all other cells</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>all_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm)</span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut neurons vs all other cells</span></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>glut_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>)</span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut and GABA neurons vs all other cells</span></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>neur_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm, <span class="at">group.1 =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>))</span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Glut vs GABA neurons</span></span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>glutvsgaba_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>, <span class="at">group.2 =</span> <span class="st">&quot;GABA neuron&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </div>
 </div>
@@ -4426,14 +4495,14 @@ margin-bottom: 1.25rem;
 <h3 class="anchored" data-anchor-id="getexpression"><i class="fa-solid fa-magnifying-glass" aria-label="magnifying-glass"></i> GetExpression</h3>
 <p><code>GetExpression()</code> quickly obtains an expression summary for isoforms or genes of interest.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Expression of MEG3-209 for all groups</span></span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>meg3_209 <span class="ot">&lt;-</span> <span class="fu">GetExpression</span>(gbm, <span class="at">transcripts =</span> <span class="st">&quot;MEG3-209&quot;</span>)</span>
-<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Expression of MEG3-209 in neurons</span></span>
-<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>meg3_209_neu <span class="ot">&lt;-</span> <span class="fu">GetExpression</span>(gbm, <span class="at">transcripts =</span> <span class="st">&quot;MEG3-209&quot;</span>, <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>))</span>
-<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Expression of all MEG3 isoforms in neurons</span></span>
-<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>meg3_neu <span class="ot">&lt;-</span> <span class="fu">GetExpression</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MEG3&quot;</span>, <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>), <span class="at">cell.dispersion =</span> <span class="cn">TRUE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Expression of MEG3-209 for all groups</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>meg3_209 <span class="ot">&lt;-</span> <span class="fu">GetExpression</span>(gbm, <span class="at">transcripts =</span> <span class="st">&quot;MEG3-209&quot;</span>)</span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Expression of MEG3-209 in neurons</span></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>meg3_209_neu <span class="ot">&lt;-</span> <span class="fu">GetExpression</span>(gbm, <span class="at">transcripts =</span> <span class="st">&quot;MEG3-209&quot;</span>, <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>))</span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Expression of all MEG3 isoforms in neurons</span></span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>meg3_neu <span class="ot">&lt;-</span> <span class="fu">GetExpression</span>(gbm, <span class="at">genes =</span> <span class="st">&quot;MEG3&quot;</span>, <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>), <span class="at">cell.dispersion =</span> <span class="cn">TRUE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div class="hypatia-table-title">
 <p><code>meg3_neu</code></p>
@@ -4548,12 +4617,12 @@ margin-bottom: 1.25rem;
 </div>
 <p>To retrieve the expression matrix without summary statistics, users can combine <code>assay()</code> with <code>SubsetCells()</code> and <code>SubsetTranscripts()</code>. The following example retrieves the normalized expression matrix for isoforms of the gene <em>MBP</em> in oligodendrocytes:</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Subset the object</span></span>
-<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>oligod <span class="ot">&lt;-</span> <span class="fu">SubsetCells</span>(gbm, cell_type <span class="sc">==</span> <span class="st">&quot;Oligodendrocyte&quot;</span>)</span>
-<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>oligod_mbp <span class="ot">&lt;-</span> <span class="fu">SubsetTranscripts</span>(oligod, <span class="at">subset =</span> gene_name <span class="sc">==</span> <span class="st">&quot;MBP&quot;</span>)</span>
-<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the matrix</span></span>
-<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a><span class="fu">assay</span>(oligod_mbp, <span class="st">&quot;logcounts&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Subset the object</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>oligod <span class="ot">&lt;-</span> <span class="fu">SubsetCells</span>(gbm, cell_type <span class="sc">==</span> <span class="st">&quot;Oligodendrocyte&quot;</span>)</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>oligod_mbp <span class="ot">&lt;-</span> <span class="fu">SubsetTranscripts</span>(oligod, <span class="at">subset =</span> gene_name <span class="sc">==</span> <span class="st">&quot;MBP&quot;</span>)</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the matrix</span></span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a><span class="fu">assay</span>(oligod_mbp, <span class="st">&quot;logcounts&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="plotexpression" class="level3">
@@ -4566,23 +4635,23 @@ margin-bottom: 1.25rem;
 <div class="cell">
 <details class="code-fold">
 <summary>Top 3 neuron DEIs</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the top 3 DEIs of neurons</span></span>
-<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>neur_top3_dei <span class="ot">&lt;-</span> neur_dei<span class="sc">$</span>stats <span class="sc">|&gt;</span></span>
-<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(log2FC <span class="sc">&gt;</span> <span class="fl">0.6</span> <span class="sc">&amp;</span> padj <span class="sc">&lt;</span> <span class="fl">0.05</span>) <span class="sc">|&gt;</span></span>
-<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">slice_min</span>(padj, <span class="at">n =</span> <span class="dv">3</span>, <span class="at">with_ties =</span> <span class="cn">FALSE</span>) <span class="sc">|&gt;</span></span>
-<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">pull</span>(transcript)</span>
-<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>neur_top3_dei</span>
-<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a><span class="do">## [1] &quot;MEG3-209&quot; &quot;MEG3-220&quot; &quot;PKD1-201&quot;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the top 3 DEIs of neurons</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>neur_top3_dei <span class="ot">&lt;-</span> neur_dei<span class="sc">$</span>stats <span class="sc">|&gt;</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(log2FC <span class="sc">&gt;</span> <span class="fl">0.6</span> <span class="sc">&amp;</span> padj <span class="sc">&lt;</span> <span class="fl">0.05</span>) <span class="sc">|&gt;</span></span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">slice_min</span>(padj, <span class="at">n =</span> <span class="dv">3</span>, <span class="at">with_ties =</span> <span class="cn">FALSE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">pull</span>(transcript)</span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a>neur_top3_dei</span>
+<span id="cb42-8"><a href="#cb42-8" aria-hidden="true" tabindex="-1"></a><span class="do">## [1] &quot;MEG3-209&quot; &quot;MEG3-220&quot; &quot;PKD1-201&quot;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 <div class="cell" data-layout-align="center">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Violin plot</span></span>
-<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotExpression</span>(</span>
-<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
-<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">transcripts =</span> neur_top3_dei,</span>
-<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;violin&quot;</span></span>
-<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Violin plot</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotExpression</span>(</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">transcripts =</span> neur_top3_dei,</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;violin&quot;</span></span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -4596,8 +4665,8 @@ margin-bottom: 1.25rem;
 <div id="tabset-3-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-3-2-tab">
 <p>For the <strong>reducedDim</strong> plot, 2D embeddings are required. Recall that <code>umap_1</code> and <code>umap_2</code> were included in the cell-level metadata when preparing the input data. These embeddings are stored in <code>reducedDims</code>, then selected with <code>dim.use</code>. Hypatia uses the supplied embedding; it does not calculate a new UMAP.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Add UMAP embeddings from the prepared colData</span></span>
-<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="fu">reducedDim</span>(gbm, <span class="st">&quot;UMAP&quot;</span>) <span class="ot">&lt;-</span> <span class="fu">colData</span>(gbm)[, <span class="fu">c</span>(<span class="st">&quot;umap_1&quot;</span>, <span class="st">&quot;umap_2&quot;</span>)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Add UMAP embeddings from the prepared colData</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="fu">reducedDim</span>(gbm, <span class="st">&quot;UMAP&quot;</span>) <span class="ot">&lt;-</span> <span class="fu">colData</span>(gbm)[, <span class="fu">c</span>(<span class="st">&quot;umap_1&quot;</span>, <span class="st">&quot;umap_2&quot;</span>)]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div class="callout callout-style-default callout-note callout-titled" title="Alternative: use a Seurat embedding">
 <div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-4-contents" aria-controls="callout-4" aria-expanded="false" aria-label="Toggle callout">
@@ -4613,7 +4682,7 @@ margin-bottom: 1.25rem;
 <div class="callout-body-container callout-body">
 <p>This alternative requires your own Seurat object and is not run here:</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="fu">reducedDim</span>(gbm, <span class="st">&quot;UMAP&quot;</span>) <span class="ot">&lt;-</span> seurat_object<span class="sc">@</span>reductions<span class="sc">$</span>umap<span class="sc">@</span>cell.embeddings[<span class="fu">colnames</span>(gbm), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="fu">reducedDim</span>(gbm, <span class="st">&quot;UMAP&quot;</span>) <span class="ot">&lt;-</span> seurat_object<span class="sc">@</span>reductions<span class="sc">$</span>umap<span class="sc">@</span>cell.embeddings[<span class="fu">colnames</span>(gbm), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </div>
 </div>
@@ -4621,24 +4690,24 @@ margin-bottom: 1.25rem;
 <div class="cell">
 <details class="code-fold">
 <summary>Top 3 neuron DEIs</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the top 3 DEIs of neurons</span></span>
-<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>neur_top3_dei <span class="ot">&lt;-</span> neur_dei<span class="sc">$</span>stats <span class="sc">|&gt;</span></span>
-<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(log2FC <span class="sc">&gt;</span> <span class="fl">0.6</span> <span class="sc">&amp;</span> padj <span class="sc">&lt;</span> <span class="fl">0.05</span>) <span class="sc">|&gt;</span></span>
-<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">slice_min</span>(padj, <span class="at">n =</span> <span class="dv">3</span>, <span class="at">with_ties =</span> <span class="cn">FALSE</span>) <span class="sc">|&gt;</span></span>
-<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">pull</span>(transcript)</span>
-<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a>neur_top3_dei</span>
-<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a><span class="do">## [1] &quot;MEG3-209&quot; &quot;MEG3-220&quot; &quot;PKD1-201&quot;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb46"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the top 3 DEIs of neurons</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>neur_top3_dei <span class="ot">&lt;-</span> neur_dei<span class="sc">$</span>stats <span class="sc">|&gt;</span></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(log2FC <span class="sc">&gt;</span> <span class="fl">0.6</span> <span class="sc">&amp;</span> padj <span class="sc">&lt;</span> <span class="fl">0.05</span>) <span class="sc">|&gt;</span></span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">slice_min</span>(padj, <span class="at">n =</span> <span class="dv">3</span>, <span class="at">with_ties =</span> <span class="cn">FALSE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">pull</span>(transcript)</span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>neur_top3_dei</span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a><span class="do">## [1] &quot;MEG3-209&quot; &quot;MEG3-220&quot; &quot;PKD1-201&quot;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 <div class="cell" data-layout-align="center">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="co"># reducedDim plot</span></span>
-<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotExpression</span>(</span>
-<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
-<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">transcripts =</span> neur_top3_dei,</span>
-<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;reducedDim&quot;</span>, </span>
-<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">dim.use =</span> <span class="st">&quot;UMAP&quot;</span></span>
-<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="co"># reducedDim plot</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotExpression</span>(</span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">transcripts =</span> neur_top3_dei,</span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;reducedDim&quot;</span>, </span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">dim.use =</span> <span class="st">&quot;UMAP&quot;</span></span>
+<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -4654,32 +4723,32 @@ margin-bottom: 1.25rem;
 <div class="cell">
 <details class="code-fold">
 <summary>Top 20 Glut vs GABA DEIs</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb46"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare Glut and GABA neurons for this heatmap</span></span>
-<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>glutvsgaba_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>, <span class="at">group.2 =</span> <span class="st">&quot;GABA neuron&quot;</span>)</span>
-<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the top 20 Glut vs GABA DEIs </span></span>
-<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>glutvsgaba_top20 <span class="ot">&lt;-</span> glutvsgaba_dei<span class="sc">$</span>stats <span class="sc">|&gt;</span></span>
-<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(<span class="fu">abs</span>(log2FC) <span class="sc">&gt;=</span> <span class="fl">0.6</span> <span class="sc">&amp;</span> padj <span class="sc">&lt;=</span> <span class="fl">0.05</span>) <span class="sc">|&gt;</span></span>
-<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">slice_min</span>(padj, <span class="at">n =</span> <span class="dv">20</span>, <span class="at">with_ties =</span> <span class="cn">FALSE</span>) <span class="sc">|&gt;</span></span>
-<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(dplyr<span class="sc">::</span><span class="fu">desc</span>(log2FC)) <span class="sc">|&gt;</span></span>
-<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">pull</span>(transcript)</span>
-<span id="cb46-10"><a href="#cb46-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb46-11"><a href="#cb46-11" aria-hidden="true" tabindex="-1"></a>glutvsgaba_top20</span>
-<span id="cb46-12"><a href="#cb46-12" aria-hidden="true" tabindex="-1"></a><span class="do">##  [1] &quot;MAST3-209&quot;      &quot;NPTX1-201&quot;      &quot;AGRN-202&quot;       &quot;SYT7-201&quot;      </span></span>
-<span id="cb46-13"><a href="#cb46-13" aria-hidden="true" tabindex="-1"></a><span class="do">##  [5] &quot;GRM2-202&quot;       &quot;SLC6A7-201&quot;     &quot;NECAB1-201&quot;     &quot;NIPAL2-201&quot;    </span></span>
-<span id="cb46-14"><a href="#cb46-14" aria-hidden="true" tabindex="-1"></a><span class="do">##  [9] &quot;KCNIP4-IT1-201&quot; &quot;KIAA0930-212&quot;   &quot;KIAA0930-201&quot;   &quot;IGSF9B-206&quot;    </span></span>
-<span id="cb46-15"><a href="#cb46-15" aria-hidden="true" tabindex="-1"></a><span class="do">## [13] &quot;GOLGA8A-204&quot;    &quot;RAP1GAP-211&quot;    &quot;MEG3-220&quot;       &quot;ADCYAP1R1-202&quot; </span></span>
-<span id="cb46-16"><a href="#cb46-16" aria-hidden="true" tabindex="-1"></a><span class="do">## [17] &quot;DNER-201&quot;       &quot;DGKD-201&quot;       &quot;NRIP3-201&quot;      &quot;SLC6A1-211&quot;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare Glut and GABA neurons for this heatmap</span></span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>glutvsgaba_dei <span class="ot">&lt;-</span> <span class="fu">RunDEI</span>(gbm, <span class="at">group.1 =</span> <span class="st">&quot;Glut neuron&quot;</span>, <span class="at">group.2 =</span> <span class="st">&quot;GABA neuron&quot;</span>)</span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the top 20 Glut vs GABA DEIs </span></span>
+<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a>glutvsgaba_top20 <span class="ot">&lt;-</span> glutvsgaba_dei<span class="sc">$</span>stats <span class="sc">|&gt;</span></span>
+<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(<span class="fu">abs</span>(log2FC) <span class="sc">&gt;=</span> <span class="fl">0.6</span> <span class="sc">&amp;</span> padj <span class="sc">&lt;=</span> <span class="fl">0.05</span>) <span class="sc">|&gt;</span></span>
+<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">slice_min</span>(padj, <span class="at">n =</span> <span class="dv">20</span>, <span class="at">with_ties =</span> <span class="cn">FALSE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb48-8"><a href="#cb48-8" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(dplyr<span class="sc">::</span><span class="fu">desc</span>(log2FC)) <span class="sc">|&gt;</span></span>
+<span id="cb48-9"><a href="#cb48-9" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">pull</span>(transcript)</span>
+<span id="cb48-10"><a href="#cb48-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb48-11"><a href="#cb48-11" aria-hidden="true" tabindex="-1"></a>glutvsgaba_top20</span>
+<span id="cb48-12"><a href="#cb48-12" aria-hidden="true" tabindex="-1"></a><span class="do">##  [1] &quot;MAST3-209&quot;      &quot;NPTX1-201&quot;      &quot;AGRN-202&quot;       &quot;SYT7-201&quot;      </span></span>
+<span id="cb48-13"><a href="#cb48-13" aria-hidden="true" tabindex="-1"></a><span class="do">##  [5] &quot;GRM2-202&quot;       &quot;SLC6A7-201&quot;     &quot;NECAB1-201&quot;     &quot;NIPAL2-201&quot;    </span></span>
+<span id="cb48-14"><a href="#cb48-14" aria-hidden="true" tabindex="-1"></a><span class="do">##  [9] &quot;KCNIP4-IT1-201&quot; &quot;KIAA0930-212&quot;   &quot;KIAA0930-201&quot;   &quot;IGSF9B-206&quot;    </span></span>
+<span id="cb48-15"><a href="#cb48-15" aria-hidden="true" tabindex="-1"></a><span class="do">## [13] &quot;GOLGA8A-204&quot;    &quot;RAP1GAP-211&quot;    &quot;MEG3-220&quot;       &quot;ADCYAP1R1-202&quot; </span></span>
+<span id="cb48-16"><a href="#cb48-16" aria-hidden="true" tabindex="-1"></a><span class="do">## [17] &quot;DNER-201&quot;       &quot;DGKD-201&quot;       &quot;NRIP3-201&quot;      &quot;SLC6A1-211&quot;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 <div class="cell" data-layout-align="center">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb47"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Heatmap</span></span>
-<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotExpression</span>(</span>
-<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
-<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">transcripts =</span> glutvsgaba_top20,</span>
-<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;heatmap&quot;</span>,</span>
-<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>)</span>
-<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Heatmap</span></span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a><span class="fu">PlotExpression</span>(</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>  gbm, </span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">transcripts =</span> glutvsgaba_top20,</span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">plot.type =</span> <span class="st">&quot;heatmap&quot;</span>,</span>
+<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">group.subset =</span> <span class="fu">c</span>(<span class="st">&quot;Glut neuron&quot;</span>, <span class="st">&quot;GABA neuron&quot;</span>)</span>
+<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -4701,50 +4770,50 @@ margin-bottom: 1.25rem;
 <h4 class="unnumbered anchored" data-anchor-id="preparing-cell-level-metadata-extended">Preparing cell-level metadata (extended)</h4>
 <p>The following shows how the cell-level metadata (<code>gbm_colData</code> from the example) was prepared from a <em>Seurat</em> object from gene expression analysis.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb48"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the cell_type ident</span></span>
-<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>gbm_colData <span class="ot">&lt;-</span> seurat_object[[]][, <span class="st">&quot;cell_type&quot;</span>, drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
-<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Get umap_1 and umap_2 from the standard workflow</span></span>
-<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a>gbm_colData <span class="ot">&lt;-</span> <span class="fu">cbind</span>(gbm_colData, seurat_object<span class="sc">@</span>reductions<span class="sc">$</span>umap<span class="sc">@</span>cell.embeddings)</span>
-<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Match row name order with count matrix</span></span>
-<span id="cb48-8"><a href="#cb48-8" aria-hidden="true" tabindex="-1"></a>gbm_colData <span class="ot">&lt;-</span> gbm_colData[<span class="fu">colnames</span>(gbm_countData), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb50"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Get the cell_type ident</span></span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a>gbm_colData <span class="ot">&lt;-</span> seurat_object[[]][, <span class="st">&quot;cell_type&quot;</span>, drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Get umap_1 and umap_2 from the standard workflow</span></span>
+<span id="cb50-5"><a href="#cb50-5" aria-hidden="true" tabindex="-1"></a>gbm_colData <span class="ot">&lt;-</span> <span class="fu">cbind</span>(gbm_colData, seurat_object<span class="sc">@</span>reductions<span class="sc">$</span>umap<span class="sc">@</span>cell.embeddings)</span>
+<span id="cb50-6"><a href="#cb50-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb50-7"><a href="#cb50-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Match row name order with count matrix</span></span>
+<span id="cb50-8"><a href="#cb50-8" aria-hidden="true" tabindex="-1"></a>gbm_colData <span class="ot">&lt;-</span> gbm_colData[<span class="fu">colnames</span>(gbm_countData), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="preparing-transcript-level-metadata-extended" class="level4 unnumbered">
 <h4 class="unnumbered anchored" data-anchor-id="preparing-transcript-level-metadata-extended">Preparing transcript-level metadata (extended)</h4>
 <p>Below shows how the transcript-level metadata (<code>gbm_rowData</code> from the example) was prepared. The GTF from the <em>IsoQuant</em> output, reference genome GTF, and <em>SQANTI</em> results were used.</p>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb49"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Read in SQANTI3 classifications</span></span>
-<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>sqanti_class <span class="ot">&lt;-</span> readr<span class="sc">::</span><span class="fu">read_delim</span>(<span class="st">&quot;OUT.extended_annotation_classification.txt&quot;</span>)</span>
-<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Read in reference GTF</span></span>
-<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>ref <span class="ot">&lt;-</span> rtracklayer<span class="sc">::</span><span class="fu">import</span>(<span class="st">&quot;GRCh38-2024-A.gtf&quot;</span>)</span>
-<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>ref <span class="ot">&lt;-</span> ref <span class="sc">|&gt;</span> </span>
-<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame</span>() <span class="sc">|&gt;</span></span>
-<span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(type <span class="sc">==</span> <span class="st">&quot;transcript&quot;</span>) <span class="sc">|&gt;</span></span>
-<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(transcript_id, transcript_name, gene_id, gene_name) <span class="sc">|&gt;</span></span>
-<span id="cb49-10"><a href="#cb49-10" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">distinct</span>()</span>
-<span id="cb49-11"><a href="#cb49-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb49-12"><a href="#cb49-12" aria-hidden="true" tabindex="-1"></a><span class="co"># build rowData</span></span>
-<span id="cb49-13"><a href="#cb49-13" aria-hidden="true" tabindex="-1"></a>gbm_rowData <span class="ot">&lt;-</span> sqanti_class <span class="sc">|&gt;</span></span>
-<span id="cb49-14"><a href="#cb49-14" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(isoform, structural_category, associated_gene, RTS_stage, within_CAGE_peak, within_polyA_site) <span class="sc">|&gt;</span></span>
-<span id="cb49-15"><a href="#cb49-15" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(isoform <span class="sc">%in%</span> <span class="fu">rownames</span>(gbm_countData)) <span class="sc">|&gt;</span></span>
-<span id="cb49-16"><a href="#cb49-16" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">rename</span>(<span class="st">&quot;gene_id&quot;</span> <span class="ot">=</span> <span class="st">&quot;associated_gene&quot;</span>,</span>
-<span id="cb49-17"><a href="#cb49-17" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;transcript_id&quot;</span> <span class="ot">=</span> <span class="st">&quot;isoform&quot;</span>) <span class="sc">|&gt;</span></span>
-<span id="cb49-18"><a href="#cb49-18" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(dplyr<span class="sc">::</span><span class="fu">distinct</span>(ref[, <span class="fu">c</span>(<span class="st">&quot;gene_name&quot;</span>, <span class="st">&quot;gene_id&quot;</span>)]), <span class="at">by =</span> <span class="st">&quot;gene_id&quot;</span>) <span class="sc">|&gt;</span></span>
-<span id="cb49-19"><a href="#cb49-19" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(dplyr<span class="sc">::</span><span class="fu">distinct</span>(ref[, <span class="fu">c</span>(<span class="st">&quot;transcript_name&quot;</span>, <span class="st">&quot;transcript_id&quot;</span>)]), <span class="at">by =</span> <span class="st">&quot;transcript_id&quot;</span>) <span class="sc">|&gt;</span></span>
-<span id="cb49-20"><a href="#cb49-20" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(<span class="at">transcript_name =</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(transcript_name), transcript_id, transcript_name),</span>
-<span id="cb49-21"><a href="#cb49-21" aria-hidden="true" tabindex="-1"></a>                <span class="at">gene_name =</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(gene_name), gene_id, gene_name)) <span class="sc">|&gt;</span></span>
-<span id="cb49-22"><a href="#cb49-22" aria-hidden="true" tabindex="-1"></a>  tibble<span class="sc">::</span><span class="fu">column_to_rownames</span>(<span class="at">var =</span> <span class="st">&quot;transcript_id&quot;</span>)</span>
-<span id="cb49-23"><a href="#cb49-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb49-24"><a href="#cb49-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Match row name order with count matrix</span></span>
-<span id="cb49-25"><a href="#cb49-25" aria-hidden="true" tabindex="-1"></a>gbm_rowData <span class="ot">&lt;-</span> gbm_rowData[<span class="fu">rownames</span>(gbm_countData), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb51"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Read in SQANTI3 classifications</span></span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>sqanti_class <span class="ot">&lt;-</span> readr<span class="sc">::</span><span class="fu">read_delim</span>(<span class="st">&quot;OUT.extended_annotation_classification.txt&quot;</span>)</span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb51-4"><a href="#cb51-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Read in reference GTF</span></span>
+<span id="cb51-5"><a href="#cb51-5" aria-hidden="true" tabindex="-1"></a>ref <span class="ot">&lt;-</span> rtracklayer<span class="sc">::</span><span class="fu">import</span>(<span class="st">&quot;GRCh38-2024-A.gtf&quot;</span>)</span>
+<span id="cb51-6"><a href="#cb51-6" aria-hidden="true" tabindex="-1"></a>ref <span class="ot">&lt;-</span> ref <span class="sc">|&gt;</span> </span>
+<span id="cb51-7"><a href="#cb51-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame</span>() <span class="sc">|&gt;</span></span>
+<span id="cb51-8"><a href="#cb51-8" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(type <span class="sc">==</span> <span class="st">&quot;transcript&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb51-9"><a href="#cb51-9" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(transcript_id, transcript_name, gene_id, gene_name) <span class="sc">|&gt;</span></span>
+<span id="cb51-10"><a href="#cb51-10" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">distinct</span>()</span>
+<span id="cb51-11"><a href="#cb51-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb51-12"><a href="#cb51-12" aria-hidden="true" tabindex="-1"></a><span class="co"># build rowData</span></span>
+<span id="cb51-13"><a href="#cb51-13" aria-hidden="true" tabindex="-1"></a>gbm_rowData <span class="ot">&lt;-</span> sqanti_class <span class="sc">|&gt;</span></span>
+<span id="cb51-14"><a href="#cb51-14" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(isoform, structural_category, associated_gene, RTS_stage, within_CAGE_peak, within_polyA_site) <span class="sc">|&gt;</span></span>
+<span id="cb51-15"><a href="#cb51-15" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(isoform <span class="sc">%in%</span> <span class="fu">rownames</span>(gbm_countData)) <span class="sc">|&gt;</span></span>
+<span id="cb51-16"><a href="#cb51-16" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">rename</span>(<span class="st">&quot;gene_id&quot;</span> <span class="ot">=</span> <span class="st">&quot;associated_gene&quot;</span>,</span>
+<span id="cb51-17"><a href="#cb51-17" aria-hidden="true" tabindex="-1"></a>                <span class="st">&quot;transcript_id&quot;</span> <span class="ot">=</span> <span class="st">&quot;isoform&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb51-18"><a href="#cb51-18" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(dplyr<span class="sc">::</span><span class="fu">distinct</span>(ref[, <span class="fu">c</span>(<span class="st">&quot;gene_name&quot;</span>, <span class="st">&quot;gene_id&quot;</span>)]), <span class="at">by =</span> <span class="st">&quot;gene_id&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb51-19"><a href="#cb51-19" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">left_join</span>(dplyr<span class="sc">::</span><span class="fu">distinct</span>(ref[, <span class="fu">c</span>(<span class="st">&quot;transcript_name&quot;</span>, <span class="st">&quot;transcript_id&quot;</span>)]), <span class="at">by =</span> <span class="st">&quot;transcript_id&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb51-20"><a href="#cb51-20" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(<span class="at">transcript_name =</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(transcript_name), transcript_id, transcript_name),</span>
+<span id="cb51-21"><a href="#cb51-21" aria-hidden="true" tabindex="-1"></a>                <span class="at">gene_name =</span> <span class="fu">ifelse</span>(<span class="fu">is.na</span>(gene_name), gene_id, gene_name)) <span class="sc">|&gt;</span></span>
+<span id="cb51-22"><a href="#cb51-22" aria-hidden="true" tabindex="-1"></a>  tibble<span class="sc">::</span><span class="fu">column_to_rownames</span>(<span class="at">var =</span> <span class="st">&quot;transcript_id&quot;</span>)</span>
+<span id="cb51-23"><a href="#cb51-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb51-24"><a href="#cb51-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Match row name order with count matrix</span></span>
+<span id="cb51-25"><a href="#cb51-25" aria-hidden="true" tabindex="-1"></a>gbm_rowData <span class="ot">&lt;-</span> gbm_rowData[<span class="fu">rownames</span>(gbm_countData), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="multiple-samples" class="level4 unnumbered">
 <h4 class="unnumbered anchored" data-anchor-id="multiple-samples">Multiple samples</h4>
-<p>To analyze multiple samples in Hypatia, a separate <em>SCE</em> object can be created for each sample, or raw isoform count matrices can be combined into a single object after aligning transcript IDs and ensuring unique cell IDs across samples. Transcript IDs must refer to consistent isoform definitions across samples. Cell- and transcript-level metadata must match the columns and rows of the combined count matrix, respectively, in the same order. Separate objects support separate analyses; cross-sample comparisons within a single Hypatia call require a combined object.</p>
+<p>To analyze multiple samples in Hypatia, a separate <em>SCE</em> object can be created for each sample, or raw isoform count matrices can be combined into a single object after aligning transcript IDs and ensuring unique cell IDs across samples. Transcript IDs must refer to consistent isoform definitions across samples. Cell- and transcript-level metadata must include every cell and transcript ID in the combined count matrix; <code>CreateSCE()</code> reorders the metadata as needed. Separate objects support separate analyses; cross-sample comparisons within a single Hypatia call require a combined object.</p>
 <p>Store sample identity and relevant annotations in the cell metadata. Multiple <code>group.by</code> variables, such as <code>group.by = c(&quot;cell_type&quot;, &quot;sample_id&quot;)</code> or <code>group.by = c(&quot;cell_type&quot;, &quot;condition&quot;)</code>, define groups from the observed combinations of those annotations, with labels joined by <code>_</code> (for example, <code>Astrocyte_control</code>). Use <code>group.1</code> and <code>group.2</code> to select specific comparisons, such as the same cell type in two conditions. Otherwise, each group is compared with the remaining cells; exactly two groups produce one comparison.</p>
 <p>This grouping does not perform batch correction or account for biological replication. In particular, including <code>sample_id</code> in <code>group.by</code> defines sample-specific groups but does not model between-sample variability. Condition-level inference across biological samples requires a replicate-aware statistical approach.</p>
 </section>
@@ -4753,59 +4822,59 @@ margin-bottom: 1.25rem;
 <div class="cell">
 <details class="code-fold">
 <summary>R and package versions</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb50"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sessionInfo</span>()</span>
-<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a><span class="do">## R version 4.5.2 (2025-10-31)</span></span>
-<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a><span class="do">## Platform: aarch64-apple-darwin20</span></span>
-<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a><span class="do">## Running under: macOS Tahoe 26.1</span></span>
-<span id="cb50-5"><a href="#cb50-5" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
-<span id="cb50-6"><a href="#cb50-6" aria-hidden="true" tabindex="-1"></a><span class="do">## Matrix products: default</span></span>
-<span id="cb50-7"><a href="#cb50-7" aria-hidden="true" tabindex="-1"></a><span class="do">## BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib </span></span>
-<span id="cb50-8"><a href="#cb50-8" aria-hidden="true" tabindex="-1"></a><span class="do">## LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1</span></span>
-<span id="cb50-9"><a href="#cb50-9" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
-<span id="cb50-10"><a href="#cb50-10" aria-hidden="true" tabindex="-1"></a><span class="do">## locale:</span></span>
-<span id="cb50-11"><a href="#cb50-11" aria-hidden="true" tabindex="-1"></a><span class="do">## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8</span></span>
-<span id="cb50-12"><a href="#cb50-12" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
-<span id="cb50-13"><a href="#cb50-13" aria-hidden="true" tabindex="-1"></a><span class="do">## time zone: America/Chicago</span></span>
-<span id="cb50-14"><a href="#cb50-14" aria-hidden="true" tabindex="-1"></a><span class="do">## tzcode source: internal</span></span>
-<span id="cb50-15"><a href="#cb50-15" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
-<span id="cb50-16"><a href="#cb50-16" aria-hidden="true" tabindex="-1"></a><span class="do">## attached base packages:</span></span>
-<span id="cb50-17"><a href="#cb50-17" aria-hidden="true" tabindex="-1"></a><span class="do">## [1] stats     graphics  grDevices utils     datasets  methods   base     </span></span>
-<span id="cb50-18"><a href="#cb50-18" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
-<span id="cb50-19"><a href="#cb50-19" aria-hidden="true" tabindex="-1"></a><span class="do">## other attached packages:</span></span>
-<span id="cb50-20"><a href="#cb50-20" aria-hidden="true" tabindex="-1"></a><span class="do">## [1] Hypatia_1.4.1</span></span>
-<span id="cb50-21"><a href="#cb50-21" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
-<span id="cb50-22"><a href="#cb50-22" aria-hidden="true" tabindex="-1"></a><span class="do">## loaded via a namespace (and not attached):</span></span>
-<span id="cb50-23"><a href="#cb50-23" aria-hidden="true" tabindex="-1"></a><span class="do">##  [1] generics_0.1.4              tidyr_1.3.2                </span></span>
-<span id="cb50-24"><a href="#cb50-24" aria-hidden="true" tabindex="-1"></a><span class="do">##  [3] SparseArray_1.10.2          lattice_0.22-7             </span></span>
-<span id="cb50-25"><a href="#cb50-25" aria-hidden="true" tabindex="-1"></a><span class="do">##  [5] digest_0.6.39               magrittr_2.0.4             </span></span>
-<span id="cb50-26"><a href="#cb50-26" aria-hidden="true" tabindex="-1"></a><span class="do">##  [7] evaluate_1.0.5              grid_4.5.2                 </span></span>
-<span id="cb50-27"><a href="#cb50-27" aria-hidden="true" tabindex="-1"></a><span class="do">##  [9] RColorBrewer_1.1-3          fastmap_1.2.0              </span></span>
-<span id="cb50-28"><a href="#cb50-28" aria-hidden="true" tabindex="-1"></a><span class="do">## [11] jsonlite_2.0.0              Matrix_1.7-4               </span></span>
-<span id="cb50-29"><a href="#cb50-29" aria-hidden="true" tabindex="-1"></a><span class="do">## [13] ggnewscale_0.5.2            GenomeInfoDb_1.46.2        </span></span>
-<span id="cb50-30"><a href="#cb50-30" aria-hidden="true" tabindex="-1"></a><span class="do">## [15] backports_1.5.0             httr_1.4.7                 </span></span>
-<span id="cb50-31"><a href="#cb50-31" aria-hidden="true" tabindex="-1"></a><span class="do">## [17] purrr_1.2.1                 SingleCellExperiment_1.32.0</span></span>
-<span id="cb50-32"><a href="#cb50-32" aria-hidden="true" tabindex="-1"></a><span class="do">## [19] UCSC.utils_1.6.1            scales_1.4.0               </span></span>
-<span id="cb50-33"><a href="#cb50-33" aria-hidden="true" tabindex="-1"></a><span class="do">## [21] abind_1.4-8                 cli_3.6.5                  </span></span>
-<span id="cb50-34"><a href="#cb50-34" aria-hidden="true" tabindex="-1"></a><span class="do">## [23] rlang_1.1.7                 XVector_0.50.0             </span></span>
-<span id="cb50-35"><a href="#cb50-35" aria-hidden="true" tabindex="-1"></a><span class="do">## [25] Biobase_2.70.0              withr_3.0.2                </span></span>
-<span id="cb50-36"><a href="#cb50-36" aria-hidden="true" tabindex="-1"></a><span class="do">## [27] DelayedArray_0.36.0         yaml_2.3.11                </span></span>
-<span id="cb50-37"><a href="#cb50-37" aria-hidden="true" tabindex="-1"></a><span class="do">## [29] S4Arrays_1.10.0             tools_4.5.2                </span></span>
-<span id="cb50-38"><a href="#cb50-38" aria-hidden="true" tabindex="-1"></a><span class="do">## [31] checkmate_2.3.3             dplyr_1.2.0                </span></span>
-<span id="cb50-39"><a href="#cb50-39" aria-hidden="true" tabindex="-1"></a><span class="do">## [33] ggplot2_4.0.1               matrixTests_0.2.3.1        </span></span>
-<span id="cb50-40"><a href="#cb50-40" aria-hidden="true" tabindex="-1"></a><span class="do">## [35] SummarizedExperiment_1.40.0 BiocGenerics_0.56.0        </span></span>
-<span id="cb50-41"><a href="#cb50-41" aria-hidden="true" tabindex="-1"></a><span class="do">## [37] vctrs_0.7.1                 R6_2.6.1                   </span></span>
-<span id="cb50-42"><a href="#cb50-42" aria-hidden="true" tabindex="-1"></a><span class="do">## [39] matrixStats_1.5.0           stats4_4.5.2               </span></span>
-<span id="cb50-43"><a href="#cb50-43" aria-hidden="true" tabindex="-1"></a><span class="do">## [41] lifecycle_1.0.5             Seqinfo_1.0.0              </span></span>
-<span id="cb50-44"><a href="#cb50-44" aria-hidden="true" tabindex="-1"></a><span class="do">## [43] S4Vectors_0.48.0            htmlwidgets_1.6.4          </span></span>
-<span id="cb50-45"><a href="#cb50-45" aria-hidden="true" tabindex="-1"></a><span class="do">## [45] IRanges_2.44.0              pkgconfig_2.0.3            </span></span>
-<span id="cb50-46"><a href="#cb50-46" aria-hidden="true" tabindex="-1"></a><span class="do">## [47] pillar_1.11.1               gtable_0.3.6               </span></span>
-<span id="cb50-47"><a href="#cb50-47" aria-hidden="true" tabindex="-1"></a><span class="do">## [49] glue_1.8.0                  xfun_0.60                  </span></span>
-<span id="cb50-48"><a href="#cb50-48" aria-hidden="true" tabindex="-1"></a><span class="do">## [51] tibble_3.3.1                GenomicRanges_1.62.0       </span></span>
-<span id="cb50-49"><a href="#cb50-49" aria-hidden="true" tabindex="-1"></a><span class="do">## [53] tidyselect_1.2.1            MatrixGenerics_1.22.0      </span></span>
-<span id="cb50-50"><a href="#cb50-50" aria-hidden="true" tabindex="-1"></a><span class="do">## [55] knitr_1.50                  farver_2.1.2               </span></span>
-<span id="cb50-51"><a href="#cb50-51" aria-hidden="true" tabindex="-1"></a><span class="do">## [57] htmltools_0.5.8.1           patchwork_1.3.2            </span></span>
-<span id="cb50-52"><a href="#cb50-52" aria-hidden="true" tabindex="-1"></a><span class="do">## [59] labeling_0.4.3              rmarkdown_2.30             </span></span>
-<span id="cb50-53"><a href="#cb50-53" aria-hidden="true" tabindex="-1"></a><span class="do">## [61] compiler_4.5.2              S7_0.2.1</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb52"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sessionInfo</span>()</span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a><span class="do">## R version 4.5.2 (2025-10-31)</span></span>
+<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a><span class="do">## Platform: aarch64-apple-darwin20</span></span>
+<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a><span class="do">## Running under: macOS Tahoe 26.1</span></span>
+<span id="cb52-5"><a href="#cb52-5" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
+<span id="cb52-6"><a href="#cb52-6" aria-hidden="true" tabindex="-1"></a><span class="do">## Matrix products: default</span></span>
+<span id="cb52-7"><a href="#cb52-7" aria-hidden="true" tabindex="-1"></a><span class="do">## BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib </span></span>
+<span id="cb52-8"><a href="#cb52-8" aria-hidden="true" tabindex="-1"></a><span class="do">## LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1</span></span>
+<span id="cb52-9"><a href="#cb52-9" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
+<span id="cb52-10"><a href="#cb52-10" aria-hidden="true" tabindex="-1"></a><span class="do">## locale:</span></span>
+<span id="cb52-11"><a href="#cb52-11" aria-hidden="true" tabindex="-1"></a><span class="do">## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8</span></span>
+<span id="cb52-12"><a href="#cb52-12" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
+<span id="cb52-13"><a href="#cb52-13" aria-hidden="true" tabindex="-1"></a><span class="do">## time zone: America/Chicago</span></span>
+<span id="cb52-14"><a href="#cb52-14" aria-hidden="true" tabindex="-1"></a><span class="do">## tzcode source: internal</span></span>
+<span id="cb52-15"><a href="#cb52-15" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
+<span id="cb52-16"><a href="#cb52-16" aria-hidden="true" tabindex="-1"></a><span class="do">## attached base packages:</span></span>
+<span id="cb52-17"><a href="#cb52-17" aria-hidden="true" tabindex="-1"></a><span class="do">## [1] stats     graphics  grDevices utils     datasets  methods   base     </span></span>
+<span id="cb52-18"><a href="#cb52-18" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
+<span id="cb52-19"><a href="#cb52-19" aria-hidden="true" tabindex="-1"></a><span class="do">## other attached packages:</span></span>
+<span id="cb52-20"><a href="#cb52-20" aria-hidden="true" tabindex="-1"></a><span class="do">## [1] Hypatia_1.5.0</span></span>
+<span id="cb52-21"><a href="#cb52-21" aria-hidden="true" tabindex="-1"></a><span class="do">## </span></span>
+<span id="cb52-22"><a href="#cb52-22" aria-hidden="true" tabindex="-1"></a><span class="do">## loaded via a namespace (and not attached):</span></span>
+<span id="cb52-23"><a href="#cb52-23" aria-hidden="true" tabindex="-1"></a><span class="do">##  [1] generics_0.1.4              tidyr_1.3.2                </span></span>
+<span id="cb52-24"><a href="#cb52-24" aria-hidden="true" tabindex="-1"></a><span class="do">##  [3] SparseArray_1.10.2          lattice_0.22-7             </span></span>
+<span id="cb52-25"><a href="#cb52-25" aria-hidden="true" tabindex="-1"></a><span class="do">##  [5] digest_0.6.39               magrittr_2.0.4             </span></span>
+<span id="cb52-26"><a href="#cb52-26" aria-hidden="true" tabindex="-1"></a><span class="do">##  [7] evaluate_1.0.5              grid_4.5.2                 </span></span>
+<span id="cb52-27"><a href="#cb52-27" aria-hidden="true" tabindex="-1"></a><span class="do">##  [9] RColorBrewer_1.1-3          fastmap_1.2.0              </span></span>
+<span id="cb52-28"><a href="#cb52-28" aria-hidden="true" tabindex="-1"></a><span class="do">## [11] jsonlite_2.0.0              Matrix_1.7-4               </span></span>
+<span id="cb52-29"><a href="#cb52-29" aria-hidden="true" tabindex="-1"></a><span class="do">## [13] ggnewscale_0.5.2            GenomeInfoDb_1.46.2        </span></span>
+<span id="cb52-30"><a href="#cb52-30" aria-hidden="true" tabindex="-1"></a><span class="do">## [15] backports_1.5.0             httr_1.4.7                 </span></span>
+<span id="cb52-31"><a href="#cb52-31" aria-hidden="true" tabindex="-1"></a><span class="do">## [17] purrr_1.2.1                 SingleCellExperiment_1.32.0</span></span>
+<span id="cb52-32"><a href="#cb52-32" aria-hidden="true" tabindex="-1"></a><span class="do">## [19] UCSC.utils_1.6.1            scales_1.4.0               </span></span>
+<span id="cb52-33"><a href="#cb52-33" aria-hidden="true" tabindex="-1"></a><span class="do">## [21] abind_1.4-8                 cli_3.6.5                  </span></span>
+<span id="cb52-34"><a href="#cb52-34" aria-hidden="true" tabindex="-1"></a><span class="do">## [23] rlang_1.1.7                 XVector_0.50.0             </span></span>
+<span id="cb52-35"><a href="#cb52-35" aria-hidden="true" tabindex="-1"></a><span class="do">## [25] Biobase_2.70.0              withr_3.0.2                </span></span>
+<span id="cb52-36"><a href="#cb52-36" aria-hidden="true" tabindex="-1"></a><span class="do">## [27] DelayedArray_0.36.0         yaml_2.3.11                </span></span>
+<span id="cb52-37"><a href="#cb52-37" aria-hidden="true" tabindex="-1"></a><span class="do">## [29] S4Arrays_1.10.0             tools_4.5.2                </span></span>
+<span id="cb52-38"><a href="#cb52-38" aria-hidden="true" tabindex="-1"></a><span class="do">## [31] checkmate_2.3.3             dplyr_1.2.0                </span></span>
+<span id="cb52-39"><a href="#cb52-39" aria-hidden="true" tabindex="-1"></a><span class="do">## [33] ggplot2_4.0.1               matrixTests_0.2.3.1        </span></span>
+<span id="cb52-40"><a href="#cb52-40" aria-hidden="true" tabindex="-1"></a><span class="do">## [35] SummarizedExperiment_1.40.0 BiocGenerics_0.56.0        </span></span>
+<span id="cb52-41"><a href="#cb52-41" aria-hidden="true" tabindex="-1"></a><span class="do">## [37] vctrs_0.7.1                 R6_2.6.1                   </span></span>
+<span id="cb52-42"><a href="#cb52-42" aria-hidden="true" tabindex="-1"></a><span class="do">## [39] matrixStats_1.5.0           stats4_4.5.2               </span></span>
+<span id="cb52-43"><a href="#cb52-43" aria-hidden="true" tabindex="-1"></a><span class="do">## [41] lifecycle_1.0.5             Seqinfo_1.0.0              </span></span>
+<span id="cb52-44"><a href="#cb52-44" aria-hidden="true" tabindex="-1"></a><span class="do">## [43] S4Vectors_0.48.0            htmlwidgets_1.6.4          </span></span>
+<span id="cb52-45"><a href="#cb52-45" aria-hidden="true" tabindex="-1"></a><span class="do">## [45] IRanges_2.44.0              pkgconfig_2.0.3            </span></span>
+<span id="cb52-46"><a href="#cb52-46" aria-hidden="true" tabindex="-1"></a><span class="do">## [47] pillar_1.11.1               gtable_0.3.6               </span></span>
+<span id="cb52-47"><a href="#cb52-47" aria-hidden="true" tabindex="-1"></a><span class="do">## [49] glue_1.8.0                  xfun_0.60                  </span></span>
+<span id="cb52-48"><a href="#cb52-48" aria-hidden="true" tabindex="-1"></a><span class="do">## [51] tibble_3.3.1                GenomicRanges_1.62.0       </span></span>
+<span id="cb52-49"><a href="#cb52-49" aria-hidden="true" tabindex="-1"></a><span class="do">## [53] tidyselect_1.2.1            MatrixGenerics_1.22.0      </span></span>
+<span id="cb52-50"><a href="#cb52-50" aria-hidden="true" tabindex="-1"></a><span class="do">## [55] knitr_1.50                  farver_2.1.2               </span></span>
+<span id="cb52-51"><a href="#cb52-51" aria-hidden="true" tabindex="-1"></a><span class="do">## [57] htmltools_0.5.8.1           patchwork_1.3.2            </span></span>
+<span id="cb52-52"><a href="#cb52-52" aria-hidden="true" tabindex="-1"></a><span class="do">## [59] labeling_0.4.3              rmarkdown_2.30             </span></span>
+<span id="cb52-53"><a href="#cb52-53" aria-hidden="true" tabindex="-1"></a><span class="do">## [61] compiler_4.5.2              S7_0.2.1</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 </section>

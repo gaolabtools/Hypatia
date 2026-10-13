@@ -1,7 +1,8 @@
 #' Run isoform diversity analysis
 #'
 #' Assesses differential isoform diversity between cell groups using directional
-#' bootstrap support for an effect threshold.
+#' bootstrap support for an effect threshold and optional cell-label
+#' permutation testing.
 #'
 #' @param object A `SingleCellExperiment` object.
 #' @param group.by One or more `colData` column names used to define cell groups. If `NULL`, `metadata(object)$active.group.id` is used.
@@ -26,6 +27,11 @@
 #' @param renormalize Logical; if `TRUE`, rescale the selected isoform proportions to sum to one before calculating diversity.
 #' @param div.diff.thresh Nonnegative minimum diversity difference for bootstrap support. Differences must strictly exceed this threshold in magnitude. Default: 0.10; choose a value appropriate for the selected entropy scale. Independent of `entropy.thresh`, which controls monoform/polyform classification.
 #' @param support.thresh Directional bootstrap support cutoff, greater than 0.5 and at most 1. Default: 0.975.
+#' @param permutation Logical; if `TRUE`, test the absolute original-data
+#'   diversity difference by permuting cell labels while preserving group sizes.
+#' @param perm.iter Number of cell-label permutations. Default: 1000.
+#' @param p.adj P-value adjustment method for permutation p-values. Must be one
+#'   of `stats::p.adjust.methods`. Default: `"BH"`.
 #'
 #' @returns A list containing two data frames:
 #' \describe{
@@ -58,6 +64,10 @@
 #'       \item{`support.positive`, `support.negative`}{Fractions of finite differences strictly above `div.diff.thresh` and strictly below `-div.diff.thresh`, respectively. `NA_real_` if no differences are finite.}
 #'       \item{`boot.valid.iter`}{Number of iterations with finite diversity values on both sides.}
 #'       \item{`supported`}{Logical flag indicating that either directional support reaches `support.thresh`. `NA` if fewer than two differences are finite. This flag does not control multiple testing.}
+#'       \item{`div.observed.1`, `div.observed.2`}{Diversity calculated from the original pooled retained-transcript counts in each group, independently of bootstrapping.}
+#'       \item{`div.diff.observed`}{Original-data diversity difference (`group.1` - `group.2`).}
+#'       \item{`pval.perm`, `padj.perm`}{Two-sided cell-label permutation p-value and its multiple-testing adjustment, calculated separately within each comparison. `NA_real_` when permutation testing is disabled, the observed difference is undefined, or any permutation difference is undefined.}
+#'       \item{`perm.valid.iter`}{Number of finite permutation differences. `NA_integer_` when permutation testing is disabled.}
 #'       \item{`n.effective.1`, `n.effective.2`}{Number of transcripts with within-gene proportion greater than or equal to `prop.thresh` in each group.}
 #'       \item{`div.class.1`}{`"monoform"` when `avgDiv.1` is at or below `entropy.thresh` and `"polyform"` otherwise.}
 #'       \item{`div.class.2`}{`"monoform"` when `avgDiv.2` is at or below `entropy.thresh` and `"polyform"` otherwise.}
@@ -90,6 +100,29 @@
 #' The default 0.975 directional cutoff approximately corresponds to a 95%
 #' percentile interval wholly outside the effect band when bootstrap interval
 #' coverage is valid. No false discovery rate control is implied.
+#'
+#' With `permutation = TRUE`, whole cells are shuffled without replacement
+#' between the two comparison groups, preserving their original sizes. Each
+#' shuffle is shared across genes. The statistic is the absolute difference
+#' between diversities calculated from pooled transcript counts; it does not
+#' use bootstrap means or `div.diff.thresh`. The same diversity function,
+#' including `top.n` selection and renormalization, is applied to the observed
+#' and permuted counts. For `B = perm.iter`, the empirical p-value is
+#' `(1 + sum(abs(permuted.diff) >= abs(observed.diff))) / (B + 1)`, including
+#' ties within numerical tolerance. P-values are unavailable if the observed
+#' difference or any permutation difference is nonfinite; inspect
+#' `perm.valid.iter`. Undefined draws are not discarded or redrawn.
+#'
+#' Observed gene and transcript filtering is held fixed during permutation,
+#' as in [RunDIU()]. These filters depend on group labels, so nominal calibration
+#' after selection is not guaranteed. Cell-label permutation requires
+#' exchangeability of whole-cell transcript profiles under the null, a stronger
+#' assumption than equal pooled diversity alone. Donor, batch, and other
+#' clustered designs require an appropriate restricted permutation procedure,
+#' which this function does not implement. Adjusted p-values and bootstrap
+#' support are separate summaries; neither changes monoform/polyform labels.
+#' The smallest attainable Monte Carlo p-value is `1 / (perm.iter + 1)`;
+#' use enough permutations for the intended multiple-testing resolution.
 #'
 #' A conventional cell bootstrap uses each group's original sample size
 #' (`boot.fraction = 1`). Smaller fractions or fixed `boot.ncells` change the
@@ -140,7 +173,10 @@ RunDIV <- function (
     top.n = NULL,
     renormalize = FALSE,
     div.diff.thresh = 0.10,
-    support.thresh = 0.975
+    support.thresh = 0.975,
+    permutation = FALSE,
+    perm.iter = 1000,
+    p.adj = "BH"
 ) {
 
   # Check inputs
@@ -185,6 +221,9 @@ RunDIV <- function (
     stop("`top.n` must be at least 2.", call. = FALSE)
   }
   assertFlag(renormalize)
+  assertFlag(permutation)
+  assertCount(perm.iter, positive = TRUE)
+  p.adj <- .PAdjustMethod(p.adj)
 
   # Transcript and gene IDs
   active_ids <- .ActiveIds(object)
@@ -407,6 +446,20 @@ RunDIV <- function (
       )
     }))
     comp_result <- bind_cols(comp_result, bootstrap_stats)
+    ## Use original pooled counts for the permutation statistic, independently
+    ## of bootstrap sample sizes and effect-support thresholds.
+    if (!quiet && permutation) {
+      message("  Performing cell-label permutations (", perm.iter, " iterations)...")
+    }
+    permutation_stats <- .PermutationDiversityStats(
+      assay(filt_object_grp1, assay.use), assay(filt_object_grp2, assay.use),
+      rowData(filt_object_grp1)[[active.gene.id]], div.func,
+      if (permutation) perm.iter else 0L
+    )
+    permutation_stats$padj.perm <- stats::p.adjust(
+      permutation_stats$pval.perm, method = p.adj
+    )
+    comp_result <- left_join(comp_result, permutation_stats, by = "gene.id")
     comp_result$avgDiv.1[!is.finite(comp_result$avgDiv.1)] <- NA_real_
     comp_result$avgDiv.2[!is.finite(comp_result$avgDiv.2)] <- NA_real_
     if (!quiet && any(comp_result$boot.valid.iter < boot.iter)) {
@@ -431,7 +484,9 @@ RunDIV <- function (
       select(group.1, group.2, gene, avgDiv.1, avgDiv.2, div.diff,
              n.effective.1, n.effective.2, div.class.1, div.class.2,
              div.diff.lower, div.diff.upper, support.positive, support.negative,
-             boot.valid.iter, supported)
+             boot.valid.iter, supported,
+             div.observed.1, div.observed.2, div.diff.observed,
+             pval.perm, padj.perm, perm.valid.iter)
 
     genes <- bootstrap_meta$gene.id
     grp1 <- bootstrap_meta$grp.1
@@ -511,7 +566,13 @@ RunDIV <- function (
                                     "support.positive" = numeric(),
                                     "support.negative" = numeric(),
                                     "boot.valid.iter" = integer(),
-                                    "supported" = logical())
+                                    "supported" = logical(),
+                                    "div.observed.1" = numeric(),
+                                    "div.observed.2" = numeric(),
+                                    "div.diff.observed" = numeric(),
+                                    "pval.perm" = numeric(),
+                                    "padj.perm" = numeric(),
+                                    "perm.valid.iter" = integer())
   }
 
   if (length(stats_list) == 0 && length(data_list) == 0) {
@@ -521,6 +582,56 @@ RunDIV <- function (
   if (!quiet) message("Done.")
   return(return_list)
 
+}
+
+# Compare original pooled diversity with cell-label permutations. Accumulate
+# exceedances instead of storing a gene-by-permutation matrix. Sparse count
+# matrices remain sparse; only the pooled transcript vectors are dense.
+.PermutationDiversityStats <- function(counts.1, counts.2, gene.ids,
+                                       div.func, perm.iter) {
+  gene_rows <- split(seq_along(gene.ids), factor(gene.ids, levels = unique(gene.ids)))
+  pooled_diversity <- function(counts) {
+    vapply(gene_rows, function(rows) {
+      total <- sum(counts[rows])
+      if (!is.finite(total) || total <= 0) return(NA_real_)
+      value <- div.func(counts[rows] / total)
+      if (is.finite(value)) value else NA_real_
+    }, numeric(1))
+  }
+  totals.1 <- rowSums(counts.1)
+  totals.2 <- rowSums(counts.2)
+  observed.1 <- pooled_diversity(totals.1)
+  observed.2 <- pooled_diversity(totals.2)
+  observed.diff <- observed.1 - observed.2
+  result <- data.frame(
+    gene.id = names(gene_rows),
+    div.observed.1 = unname(observed.1),
+    div.observed.2 = unname(observed.2),
+    div.diff.observed = unname(observed.diff),
+    pval.perm = NA_real_,
+    perm.valid.iter = NA_integer_
+  )
+  if (perm.iter == 0L) return(result)
+
+  counts <- cbind(counts.1, counts.2)
+  totals <- totals.1 + totals.2
+  valid <- integer(length(gene_rows))
+  exceed <- integer(length(gene_rows))
+  observed <- abs(observed.diff)
+  tolerance <- sqrt(.Machine$double.eps) * abs(observed)
+  for (iter in seq_len(perm.iter)) {
+    cells.1 <- sample.int(ncol(counts))[seq_len(ncol(counts.1))]
+    shuffled.1 <- rowSums(counts[, cells.1, drop = FALSE])
+    delta <- pooled_diversity(shuffled.1) - pooled_diversity(totals - shuffled.1)
+    finite <- is.finite(delta)
+    valid <- valid + as.integer(finite)
+    extreme <- finite & is.finite(observed) & abs(delta) >= observed - tolerance
+    exceed <- exceed + as.integer(extreme)
+  }
+  result$perm.valid.iter <- valid
+  testable <- is.finite(observed) & valid == perm.iter
+  result$pval.perm[testable] <- (1 + exceed[testable]) / (1 + perm.iter)
+  result
 }
 
 # Summarize differences from matching bootstrap iterations. Missing values

@@ -20,9 +20,9 @@ CreateSCE(
 \arguments{
 \item{countData}{Numeric matrix, sparse matrix, or data frame of raw isoform counts. Row names are transcript IDs and column names are cell IDs.}
 
-\item{colData}{A data frame of cell-level metadata. Row names must match the column names of \code{countData}.}
+\item{colData}{A data frame of cell-level metadata. Row names must include every column name of \code{countData}; rows are reordered to match and extra rows are ignored.}
 
-\item{rowData}{A data frame of transcript-level metadata. Row names must match the row names of \code{countData}. Must include the column named by \code{active.gene.id}.}
+\item{rowData}{A data frame of transcript-level metadata. Row names must include every row name of \code{countData}; rows are reordered to match and extra rows are ignored. Must include the column named by \code{active.gene.id}.}
 
 \item{active.gene.id}{Name of the \code{rowData} column containing gene IDs for each transcript.}
 
@@ -45,8 +45,10 @@ A \code{SingleCellExperiment} object with a \code{"counts"} assay, QC columns in
 Creates a \code{SingleCellExperiment} object from isoform counts, cell-level metadata, and transcript-level metadata.
 }
 \details{
-Metadata row names must already match the count-matrix identifiers
-in the same order. Counts must be numeric, non-negative, and non-missing;
+Metadata rows are matched by name to the count-matrix identifiers,
+preserving count-matrix order. Missing cell or transcript metadata IDs produce
+an error listing the missing IDs; extra metadata rows are ignored.
+Counts must be numeric, finite, non-negative, and non-missing;
 dense matrices and data frames are converted to a sparse \code{dgCMatrix}.
 Cell metadata must contain at least one column with two distinct non-missing
 values. Active gene IDs may repeat; active transcript IDs must be unique.
