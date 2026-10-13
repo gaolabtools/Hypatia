@@ -27,7 +27,10 @@ RunDIV(
   top.n = NULL,
   renormalize = FALSE,
   div.diff.thresh = 0.1,
-  support.thresh = 0.975
+  support.thresh = 0.975,
+  permutation = FALSE,
+  perm.iter = 1000,
+  p.adj = "BH"
 )
 }
 \arguments{
@@ -76,6 +79,14 @@ RunDIV(
 \item{div.diff.thresh}{Nonnegative minimum diversity difference for bootstrap support. Differences must strictly exceed this threshold in magnitude. Default: 0.10; choose a value appropriate for the selected entropy scale. Independent of \code{entropy.thresh}, which controls monoform/polyform classification.}
 
 \item{support.thresh}{Directional bootstrap support cutoff, greater than 0.5 and at most 1. Default: 0.975.}
+
+\item{permutation}{Logical; if \code{TRUE}, test the absolute original-data
+diversity difference by permuting cell labels while preserving group sizes.}
+
+\item{perm.iter}{Number of cell-label permutations. Default: 1000.}
+
+\item{p.adj}{P-value adjustment method for permutation p-values. Must be one
+of \code{stats::p.adjust.methods}. Default: \code{"BH"}.}
 }
 \value{
 A list containing two data frames:
@@ -109,6 +120,10 @@ A data frame containing statistical results with columns:
 \item{\code{support.positive}, \code{support.negative}}{Fractions of finite differences strictly above \code{div.diff.thresh} and strictly below \code{-div.diff.thresh}, respectively. \code{NA_real_} if no differences are finite.}
 \item{\code{boot.valid.iter}}{Number of iterations with finite diversity values on both sides.}
 \item{\code{supported}}{Logical flag indicating that either directional support reaches \code{support.thresh}. \code{NA} if fewer than two differences are finite. This flag does not control multiple testing.}
+\item{\code{div.observed.1}, \code{div.observed.2}}{Diversity calculated from the original pooled retained-transcript counts in each group, independently of bootstrapping.}
+\item{\code{div.diff.observed}}{Original-data diversity difference (\code{group.1} - \code{group.2}).}
+\item{\code{pval.perm}, \code{padj.perm}}{Two-sided cell-label permutation p-value and its multiple-testing adjustment, calculated separately within each comparison. \code{NA_real_} when permutation testing is disabled, the observed difference is undefined, or any permutation difference is undefined.}
+\item{\code{perm.valid.iter}}{Number of finite permutation differences. \code{NA_integer_} when permutation testing is disabled.}
 \item{\code{n.effective.1}, \code{n.effective.2}}{Number of transcripts with within-gene proportion greater than or equal to \code{prop.thresh} in each group.}
 \item{\code{div.class.1}}{\code{"monoform"} when \code{avgDiv.1} is at or below \code{entropy.thresh} and \code{"polyform"} otherwise.}
 \item{\code{div.class.2}}{\code{"monoform"} when \code{avgDiv.2} is at or below \code{entropy.thresh} and \code{"polyform"} otherwise.}
@@ -120,7 +135,8 @@ Rows in \verb{$data} are ordered by \code{group.1}, \code{group.2}, and \code{ge
 }
 \description{
 Assesses differential isoform diversity between cell groups using directional
-bootstrap support for an effect threshold.
+bootstrap support for an effect threshold and optional cell-label
+permutation testing.
 }
 \details{
 Genes must meet \code{min.gene.pct} and \code{min.gene.cts} in both comparison
@@ -147,6 +163,29 @@ or adjusted p-values.
 The default 0.975 directional cutoff approximately corresponds to a 95\%
 percentile interval wholly outside the effect band when bootstrap interval
 coverage is valid. No false discovery rate control is implied.
+
+With \code{permutation = TRUE}, whole cells are shuffled without replacement
+between the two comparison groups, preserving their original sizes. Each
+shuffle is shared across genes. The statistic is the absolute difference
+between diversities calculated from pooled transcript counts; it does not
+use bootstrap means or \code{div.diff.thresh}. The same diversity function,
+including \code{top.n} selection and renormalization, is applied to the observed
+and permuted counts. For \code{B = perm.iter}, the empirical p-value is
+\code{(1 + sum(abs(permuted.diff) >= abs(observed.diff))) / (B + 1)}, including
+ties within numerical tolerance. P-values are unavailable if the observed
+difference or any permutation difference is nonfinite; inspect
+\code{perm.valid.iter}. Undefined draws are not discarded or redrawn.
+
+Observed gene and transcript filtering is held fixed during permutation,
+as in \code{\link[=RunDIU]{RunDIU()}}. These filters depend on group labels, so nominal calibration
+after selection is not guaranteed. Cell-label permutation requires
+exchangeability of whole-cell transcript profiles under the null, a stronger
+assumption than equal pooled diversity alone. Donor, batch, and other
+clustered designs require an appropriate restricted permutation procedure,
+which this function does not implement. Adjusted p-values and bootstrap
+support are separate summaries; neither changes monoform/polyform labels.
+The smallest attainable Monte Carlo p-value is \code{1 / (perm.iter + 1)};
+use enough permutations for the intended multiple-testing resolution.
 
 A conventional cell bootstrap uses each group's original sample size
 (\code{boot.fraction = 1}). Smaller fractions or fixed \code{boot.ncells} change the

@@ -143,7 +143,9 @@ test_that("invalid bootstrap genes remain visible with unavailable support", {
 
 test_that("bootstrap method arguments are validated", {
   object <- make_div_bootstrap_sce()
-  expect_false(any(c("test.use", "p.adj") %in% names(formals(RunDIV))))
+  expect_false("test.use" %in% names(formals(RunDIV)))
+  expect_identical(formals(RunDIV)$permutation, FALSE)
+  expect_identical(formals(RunDIV)$p.adj, "BH")
   expect_equal(formals(RunDIV)$boot.iter, 5000)
   expect_equal(formals(RunDIV)$boot.fraction, 1)
   for (threshold in list(-1, NA_real_, Inf)) {

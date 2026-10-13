@@ -114,7 +114,9 @@ div_stats_schema <- c(
   div.class.2 = "character", div.diff.lower = "double",
   div.diff.upper = "double", support.positive = "double",
   support.negative = "double", boot.valid.iter = "integer",
-  supported = "logical"
+  supported = "logical", div.observed.1 = "double", div.observed.2 = "double",
+  div.diff.observed = "double", pval.perm = "double", padj.perm = "double",
+  perm.valid.iter = "integer"
 )
 
 dei_data_schema <- c(

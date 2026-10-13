@@ -200,7 +200,7 @@ Hypatia requires 3 inputs:
 
 1. **Single-cell isoform expression matrix**
 
-   A numeric data frame, dense matrix, or sparse `dgCMatrix` of non-negative raw isoform counts. Row names are unique transcript IDs and column names are unique cell IDs.
+   A numeric data frame, dense matrix, or sparse `dgCMatrix` of finite, non-negative raw isoform counts with no missing values. Row names are unique transcript IDs and column names are unique cell IDs.
 
 2. **Cell-level metadata**
 
@@ -333,7 +333,7 @@ gbm
 ::: {.callout-note icon="true" appearance="simple"}
 
 1. By default, `CreateSCE()` searches for a column called `"gene_id"` in `rowData` for associated genes. This can be changed with `active.gene.id`.
-2. The row name orders in `rowData` and `colData` must match the row and column name orders in `countData`, respectively.
+2. `CreateSCE()` matches metadata rows by ID and reorders them to match `countData`. Every cell and transcript in the count matrix must have metadata; missing IDs produce an error, and extra metadata rows are ignored.
 :::
 
 
@@ -538,6 +538,36 @@ set.seed(1024)
 glutvsgaba_diu <- RunDIU(gbm, group.1 = "Glut neuron", group.2 = "GABA neuron")
 ```
 
+Set `permutation = TRUE` to test isoform usage by randomly shuffling cells
+between groups while keeping group sizes the same. By default, the test uses
+both the Chi-square statistic (`"chisq"`) and the largest absolute transcript
+proportion difference (`"max_delta"`). Results include BH-adjusted p-values for
+each comparison (`padj.perm` and `padj.perm.delta`, respectively), alongside the
+usual test and bootstrap results.
+
+```{r rundiu-permutation}
+#| eval: false
+
+set.seed(1024)
+glutvsgaba_diu_perm <- RunDIU(
+  gbm, group.1 = "Glut neuron", group.2 = "GABA neuron",
+  permutation = TRUE, perm.iter = 5000
+)
+
+significant_diu <- glutvsgaba_diu_perm$stats |>
+  dplyr::filter(padj.perm.delta < 0.05, abs(max.prop.diff) > 0.10)
+```
+
+This example selects genes with an adjusted maximum-difference permutation
+p-value below 0.05 and an observed proportion difference above 0.10 in magnitude.
+The effect-size filter is separate from the test. Use `padj.perm` instead to
+select genes using the Chi-square permutation test, or set `perm.statistics`
+to request just one statistic.
+
+More permutations give finer p-value resolution. This test assumes cells can
+be freely shuffled under the null and does not account for donor or batch
+structure. See `?RunDIU` for options and interpretation.
+
 ::: {.callout-note collapse="false" title="Defining comparisons"}
 
 Groups are defined by the active cell grouping or the columns supplied to `group.by`:
@@ -638,8 +668,6 @@ glutvsgaba_diu$stats |>
 - `approx`: A count-based heuristic: `"valid"` when more than 80% of observed contingency-table counts exceed 5 and all counts are positive; `"warning"` otherwise. This does not check expected counts. Fisher's test reports `NA`.
 - `boot.prop.diff.mean`, `boot.prop.diff.lower`, `boot.prop.diff.upper`: Bootstrap mean and nominal percentile confidence interval for the signed difference of the transcript associated with `max.prop.diff`. Bounds are unavailable with fewer than two finite differences; the mean is unavailable with none. All three values are `NA` when bootstrapping is disabled.
 - `boot.valid.iter`: Number of finite bootstrap differences used for the summaries.
-
-Set `permutation = TRUE` to calculate empirical p-values from `perm.statistics = c("chisq", "max_delta")`.
 
 :::
 
@@ -806,6 +834,32 @@ supported_div <- gbm_div$stats |>
 
 Bootstrap support measures consistency across resampled cells; it is not an adjusted p-value. Check `boot.valid.iter` for the number of valid samples.
 
+Set `permutation = TRUE` to test whether the diversity difference is larger than
+expected after randomly shuffling cells between groups. Group sizes stay the
+same, and diversity is calculated from pooled counts. Results include p-values
+(`pval.perm`) and BH-adjusted p-values (`padj.perm`) for each comparison, alongside
+bootstrap support.
+
+```{r rundiv-permutation}
+#| eval: false
+
+set.seed(1024)
+gbm_div_perm <- RunDIV(gbm, permutation = TRUE, perm.iter = 5000)
+
+significant_div <- gbm_div_perm$stats |>
+  dplyr::filter(padj.perm < 0.05, abs(div.diff.observed) > 0.10)
+```
+
+This example selects genes with an adjusted p-value below 0.05 and an observed
+diversity difference above 0.10 in magnitude. The effect-size filter is separate
+from the test; choose a threshold appropriate to your diversity measure.
+
+Check `perm.valid.iter` for usable shuffles. P-values are `NA` if the original
+difference or any shuffled difference cannot be calculated. More permutations
+give finer p-value resolution. This test assumes cells can be freely shuffled
+under the null and does not account for donor or batch structure. See `?RunDIV`
+for assumptions and filtering details.
+
 ::: {.callout-note collapse="true" title="Defining comparisons"}
 
 Groups are defined by the active cell grouping or the columns supplied to `group.by`:
@@ -885,7 +939,7 @@ gbm_div$stats |>
 
 ::: {.callout-note .hypatia-output-reference appearance="simple" icon="false"}
 
-`$stats` contains diversity summaries and bootstrap support:
+`$stats` contains diversity summaries, bootstrap support, and optional permutation results:
 
 - `group.1` & `group.2`: The two cell groups being compared.
 - `gene`: Gene for which the isoform diversity is computed and compared.
@@ -896,6 +950,10 @@ gbm_div$stats |>
 - `support.positive`, `support.negative`: Fractions of valid differences above `div.diff.thresh` and below `-div.diff.thresh`, respectively.
 - `boot.valid.iter`: Number of iterations with finite diversity differences.
 - `supported`: Whether either directional support reaches `support.thresh`; `NA` if fewer than two valid differences are available. The function returns all retained genes; use this column to filter supported effects.
+- `div.observed.1`, `div.observed.2`: Diversity from the original pooled counts after transcript filtering.
+- `div.diff.observed`: Original-data difference (`group.1` - `group.2`) used for permutation testing.
+- `pval.perm`, `padj.perm`: Two-sided permutation p-value and adjusted p-value. Values are `NA` when testing is disabled or any required difference cannot be calculated.
+- `perm.valid.iter`: Number of usable shuffles; `NA` when permutation testing is disabled.
 - `n.effective.1`: Number of effective isoforms for the gene in `group.1`.
 - `n.effective.2`: Number of effective isoforms for the gene in `group.2`.
 - `div.class.1`: "monoform" when `avgDiv.1` is at or below `entropy.thresh` and "polyform" otherwise.
@@ -1386,7 +1444,7 @@ gbm_rowData <- gbm_rowData[rownames(gbm_countData), , drop = FALSE]
 
 #### Multiple samples {.unnumbered}
 
-To analyze multiple samples in Hypatia, a separate *SCE* object can be created for each sample, or raw isoform count matrices can be combined into a single object after aligning transcript IDs and ensuring unique cell IDs across samples. Transcript IDs must refer to consistent isoform definitions across samples. Cell- and transcript-level metadata must match the columns and rows of the combined count matrix, respectively, in the same order. Separate objects support separate analyses; cross-sample comparisons within a single Hypatia call require a combined object.
+To analyze multiple samples in Hypatia, a separate *SCE* object can be created for each sample, or raw isoform count matrices can be combined into a single object after aligning transcript IDs and ensuring unique cell IDs across samples. Transcript IDs must refer to consistent isoform definitions across samples. Cell- and transcript-level metadata must include every cell and transcript ID in the combined count matrix; `CreateSCE()` reorders the metadata as needed. Separate objects support separate analyses; cross-sample comparisons within a single Hypatia call require a combined object.
 
 Store sample identity and relevant annotations in the cell metadata. Multiple `group.by` variables, such as `group.by = c("cell_type", "sample_id")` or `group.by = c("cell_type", "condition")`, define groups from the observed combinations of those annotations, with labels joined by `_` (for example, `Astrocyte_control`). Use `group.1` and `group.2` to select specific comparisons, such as the same cell type in two conditions. Otherwise, each group is compared with the remaining cells; exactly two groups produce one comparison.
 
