@@ -218,3 +218,53 @@ test_that("CreateSCE validates quiet before emitting messages", {
     )
   }
 })
+
+for (reserved_name in c("seqnames", "ranges", "strand", "start", "end", "width", "element")) {
+  test_that(paste("CreateSCE rejects reserved rowData column", reserved_name), {
+    input <- make_metadata_alignment_input()
+    input$transcripts[[reserved_name]] <- c("+", "-", "+")
+    gtf <- GenomicRanges::GRanges("chr1", IRanges::IRanges(1:3, width = 10))
+    S4Vectors::mcols(gtf)$transcript_id <- rownames(input$counts)
+
+    for (ranges in list(NULL, gtf)) {
+      expect_error(
+        CreateSCE(input$counts, input$cells, input$transcripts,
+          active.gene.id = "gene_alias", gtf = ranges,
+          gtf.transcript.id = "transcript_id", quiet = TRUE),
+        paste0("`rowData` contains reserved column names: ", reserved_name,
+               ". Rename these columns before calling CreateSCE()."),
+        fixed = TRUE
+      )
+    }
+  })
+}
+
+test_that("CreateSCE lists all offending names and preserves valid metadata names", {
+  input <- make_metadata_alignment_input()
+  input$transcripts$strand <- c("+", "-", "+")
+  input$transcripts$start <- 1:3
+  expect_error(
+    CreateSCE(input$counts, input$cells, input$transcripts,
+      active.gene.id = "gene_alias", quiet = TRUE),
+    "`rowData` contains reserved column names: strand, start.", fixed = TRUE
+  )
+
+  names(input$transcripts)[3:4] <- c("transcript_strand", "transcript_start")
+  input$transcripts[["gene label"]] <- c("Gene 2", "Gene 1", "Gene 2")
+  input$transcripts$Strand <- input$transcripts$transcript_strand
+  # The restriction applies to transcript metadata, not cell metadata.
+  for (column in c("seqnames", "ranges", "strand", "start", "end", "width", "element")) {
+    input$cells[[column]] <- 1:3
+  }
+  for (counts in list(input$counts, Matrix::Matrix(input$counts, sparse = TRUE))) {
+    object <- CreateSCE(counts, input$cells, input$transcripts,
+      active.gene.id = "gene_alias", quiet = TRUE)
+    expect_true(methods::validObject(object))
+    for (column in names(input$transcripts)) {
+      expect_identical(rowData(object)[[column]], input$transcripts[[column]])
+    }
+    for (column in names(input$cells)) {
+      expect_identical(colData(object)[[column]], input$cells[[column]])
+    }
+  }
+})

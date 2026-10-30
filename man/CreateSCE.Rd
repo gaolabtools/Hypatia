@@ -22,7 +22,7 @@ CreateSCE(
 
 \item{colData}{A data frame of cell-level metadata. Row names must include every column name of \code{countData}; rows are reordered to match and extra rows are ignored.}
 
-\item{rowData}{A data frame of transcript-level metadata. Row names must include every row name of \code{countData}; rows are reordered to match and extra rows are ignored. Must include the column named by \code{active.gene.id}.}
+\item{rowData}{A data frame of transcript-level metadata. Row names must include every row name of \code{countData}; rows are reordered to match and extra rows are ignored. Must include the column named by \code{active.gene.id}. Column names reserved by \code{GRangesList} (\code{seqnames}, \code{ranges}, \code{strand}, \code{start}, \code{end}, \code{width}, and \code{element}) are rejected; rename them explicitly before calling this function.}
 
 \item{active.gene.id}{Name of the \code{rowData} column containing gene IDs for each transcript.}
 

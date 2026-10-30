@@ -118,8 +118,56 @@ test_that("SubsetTranscripts reports invalid subset expressions", {
       quiet = TRUE
     )
 
-  expect_error(
+  error <- expect_error(
     SubsetTranscripts(gbm, subset = missing_column == "x", quiet = TRUE),
-    "subset term was not valid"
+    "Failed to subset transcripts using `subset`:", fixed = TRUE
   )
+  expect_match(conditionMessage(error), "missing_column", fixed = TRUE)
+})
+
+make_subset_metadata_sce <- function(active_ids = FALSE) {
+  counts <- matrix(c(2, 0, 5, 0, 3, 1, 4, 0, 0), nrow = 3, byrow = TRUE,
+    dimnames = list(c("tx3", "tx1", "tx2"), c("cell3", "cell1", "cell2")))
+  CreateSCE(counts,
+    data.frame(group = c("A", "B", "A"), row.names = colnames(counts)),
+    data.frame(gene_alias = c("g2", "g1", "g2"),
+      tx_alias = c("iso3", "iso1", "iso2"), transcript_strand = c("+", "-", "+"),
+      row.names = rownames(counts)),
+    active.gene.id = "gene_alias",
+    active.transcript.id = if (active_ids) "tx_alias" else NULL, quiet = TRUE)
+}
+
+for (reserved_name in c("seqnames", "ranges", "strand", "start", "end", "width", "element")) {
+  test_that(paste("SubsetTranscripts retains errors for legacy column", reserved_name), {
+    object <- make_subset_metadata_sce()
+    # Simulate objects created before CreateSCE rejected reserved names.
+    rowData(object)[[reserved_name]] <- c("+", "-", "+")
+    original_error <- tryCatch(object[1:2, , drop = FALSE], error = identity)
+    expect_s3_class(original_error, "error")
+    expect_error(SubsetTranscripts(object, transcripts = "tx1", quiet = TRUE),
+                 conditionMessage(original_error), fixed = TRUE)
+    expect_error(SubsetTranscripts(object, subset = nCell >= 1, quiet = TRUE),
+                 conditionMessage(original_error), fixed = TRUE)
+  })
+}
+
+test_that("valid transcript subsetting preserves row IDs, annotations, and cell order", {
+  for (active_ids in c(FALSE, TRUE)) {
+    object <- make_subset_metadata_sce(active_ids)
+    selected <- if (active_ids) c("iso2", "iso3") else c("tx2", "tx3")
+    for (invert in c(FALSE, TRUE)) {
+      expected_rows <- if (invert) 2L else c(1L, 3L)
+      by_ids <- SubsetTranscripts(object, transcripts = selected, invert = invert,
+                                 quiet = TRUE)
+      by_expression <- SubsetTranscripts(object, subset = transcript_strand == "+",
+                                        invert = invert, quiet = TRUE)
+      expect_identical(by_ids, by_expression)
+      expect_identical(rownames(by_ids), rownames(object)[expected_rows])
+      expect_identical(colnames(by_ids), colnames(object))
+      expect_identical(rowData(by_ids), rowData(object)[expected_rows, , drop = FALSE])
+      expect_identical(assay(by_ids, "counts"),
+                       assay(object, "counts")[expected_rows, , drop = FALSE])
+      expect_true(methods::validObject(by_ids))
+    }
+  }
 })

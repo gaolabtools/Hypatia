@@ -4,7 +4,7 @@
 #'
 #' @param countData Numeric matrix, sparse matrix, or data frame of raw isoform counts. Row names are transcript IDs and column names are cell IDs.
 #' @param colData A data frame of cell-level metadata. Row names must include every column name of `countData`; rows are reordered to match and extra rows are ignored.
-#' @param rowData A data frame of transcript-level metadata. Row names must include every row name of `countData`; rows are reordered to match and extra rows are ignored. Must include the column named by `active.gene.id`.
+#' @param rowData A data frame of transcript-level metadata. Row names must include every row name of `countData`; rows are reordered to match and extra rows are ignored. Must include the column named by `active.gene.id`. Column names reserved by `GRangesList` (`seqnames`, `ranges`, `strand`, `start`, `end`, `width`, and `element`) are rejected; rename them explicitly before calling this function.
 #' @param active.gene.id Name of the `rowData` column containing gene IDs for each transcript.
 #' @param active.group.id Optional `colData` column name to use as the default cell grouping in downstream functions.
 #' @param active.transcript.id Optional `rowData` column name containing unique transcript IDs to report instead of row names.
@@ -95,6 +95,13 @@ CreateSCE <- function(
 
   ## rowData
   assertClass(rowData, "data.frame")
+  reserved_names <- c("seqnames", "ranges", "strand", "start", "end", "width", "element")
+  invalid_names <- intersect(colnames(rowData), reserved_names)
+  if (length(invalid_names) > 0L) {
+    stop("`rowData` contains reserved column names: ",
+         paste(invalid_names, collapse = ", "),
+         ". Rename these columns before calling CreateSCE().", call. = FALSE)
+  }
   rowData <- .AlignCountMetadata(rowData, rownames(countData), "rowData", "transcript")
   assertChoice(active.gene.id, colnames(rowData))
   assertCharacter(rowData[[active.gene.id]], any.missing = FALSE)

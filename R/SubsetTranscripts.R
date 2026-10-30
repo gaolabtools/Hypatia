@@ -19,6 +19,8 @@
 #' `nCount`, `nTranscript`, and `nGene` are recalculated from retained raw counts
 #' using the active gene IDs. Existing normalized assays are subset without
 #' being renormalized. Selecting no transcripts returns an object with zero rows.
+#' Errors during selection include the underlying error message, which may
+#' describe an invalid object or metadata expression rather than invalid IDs.
 #' @seealso [SubsetCells()], [NormalizeCounts()]
 #' @export
 #' @import checkmate
@@ -88,7 +90,8 @@ SubsetTranscripts <- function(
     )
 
     if (inherits(try_res, "try-error")) {
-      stop("The subset term was not valid. Check logical expression or active.transcript.id?", call. = FALSE)
+      stop("Failed to subset transcripts using `subset`: ",
+           conditionMessage(attr(try_res, "condition")), call. = FALSE)
     }
   }
   # Transcripts were provided
@@ -108,7 +111,8 @@ SubsetTranscripts <- function(
     )
 
     if (inherits(try_res, "try-error")) {
-      stop("The provided transcript IDs were not valid.", call. = FALSE)
+      stop("Failed to subset transcripts using `transcripts`: ",
+           conditionMessage(attr(try_res, "condition")), call. = FALSE)
     }
   }
 

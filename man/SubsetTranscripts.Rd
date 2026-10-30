@@ -40,6 +40,8 @@ All assays and transcript annotations are subset together. Cell-level
 \code{nCount}, \code{nTranscript}, and \code{nGene} are recalculated from retained raw counts
 using the active gene IDs. Existing normalized assays are subset without
 being renormalized. Selecting no transcripts returns an object with zero rows.
+Errors during selection include the underlying error message, which may
+describe an invalid object or metadata expression rather than invalid IDs.
 }
 \seealso{
 \code{\link[=SubsetCells]{SubsetCells()}}, \code{\link[=NormalizeCounts]{NormalizeCounts()}}
